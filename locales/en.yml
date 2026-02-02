@@ -1,0 +1,63 @@
+app:
+  name: "SpendGrid"
+  description: "Financial Projection and Cash Flow Management"
+
+commands:
+  init:
+    confirm: "SpendGrid has not been initialized in this directory. Do you want to initialize it here? [y/n]"
+    success: "SpendGrid initialized successfully!"
+    error: "Failed to initialize: %v"
+    already_exists: "SpendGrid is already initialized in this directory."
+  
+  version:
+    format: "SpendGrid v%s"
+
+errors:
+  unknown_command: "Unknown command: %s"
+  load_translations: "Error loading translations: %v"
+
+common:
+  yes: "y"
+  no: "n"
+  confirm: "Confirm"
+  cancel: "Cancel"
+
+transaction:
+  day_prompt: "Day:"
+  description_prompt: "Description:"
+  amount_prompt: "Amount and currency (e.g., -25000TRY or 500USD):"
+  tags_prompt: "Tags (with #, space separated):"
+  projects_prompt: "Projects (with @, space separated):"
+  note_prompt: "Note (optional):"
+  add_success: "Transaction added successfully!"
+  edit_success: "Transaction updated successfully!"
+  remove_success: "Transaction removed successfully!"
+  parsed_header: "Transactions"
+  unparsed_header: "Unparsed Lines"
+  no_transactions: "No transactions found for this month."
+
+rules:
+  no_rules: "No rules defined yet."
+  header: "Recurring Transaction Rules"
+  name_prompt: "Rule name:"
+  type_prompt: "Type"
+  amount_prompt: "Amount:"
+  currency_prompt: "Currency"
+  day_prompt: "Day of month"
+  tags_prompt: "Tags (space separated):"
+  project_prompt: "Project (optional):"
+  add_success: "Rule added successfully!"
+  edit_success: "Rule updated successfully!"
+  remove_success: "Rule removed successfully!"
+  sync_start: "Syncing rules..."
+  sync_complete: "Sync complete! Added: %d, Updated: %d, Skipped: %d"
+  sync_errors: "Errors:"
+
+reports:
+  monthly_title: "Monthly Report"
+  yearly_title: "Yearly Report"
+  summary: "Summary"
+  by_category: "By Category"
+  by_currency: "By Currency"
+  monthly_breakdown: "Monthly Breakdown"
+  no_data: "No data available."

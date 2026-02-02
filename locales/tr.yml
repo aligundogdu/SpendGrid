@@ -1,0 +1,90 @@
+app:
+  name: "SpendGrid"
+  description: "Finansal Projeksiyon ve Nakit Akışı Yönetimi"
+
+commands:
+  init:
+    confirm: "SpendGrid bu dizinde daha önce çalışmamış, bu klasörde çalışmak ister misiniz? [e/h]"
+    success: "SpendGrid başarıyla başlatıldı!"
+    error: "Başlatma başarısız: %v"
+    already_exists: "SpendGrid bu dizinde zaten başlatılmış."
+  
+  version:
+    format: "SpendGrid v%s"
+
+errors:
+  unknown_command: "Bilinmeyen komut: %s"
+  load_translations: "Çeviriler yüklenirken hata: %v"
+
+common:
+  yes: "e"
+  no: "h"
+  confirm: "Onayla"
+  cancel: "İptal"
+
+transaction:
+  day_prompt: "Gün:"
+  description_prompt: "Açıklama:"
+  amount_prompt: "Tutar ve para birimi (örn: -25000TRY veya 500USD):"
+  tags_prompt: "Etiketler (# işareti ile, boşlukla ayırın):"
+  projects_prompt: "Projeler (@ işareti ile, boşlukla ayırın):"
+  note_prompt: "Not (opsiyonel):"
+  add_success: "İşlem başarıyla eklendi!"
+  edit_success: "İşlem başarıyla güncellendi!"
+  remove_success: "İşlem başarıyla silindi!"
+  parsed_header: "İşlemler"
+  unparsed_header: "İşlenemeyen Satırlar"
+  no_transactions: "Bu ay için işlem bulunamadı."
+
+rules:
+  no_rules: "Henüz tanımlanmış kural yok."
+  header: "Düzenli İşlem Kuralları"
+  name_prompt: "Kural adı:"
+  type_prompt: "Tür"
+  amount_prompt: "Tutar:"
+  currency_prompt: "Para birimi"
+  day_prompt: "Ayın günü"
+  tags_prompt: "Etiketler (boşlukla ayırın):"
+  project_prompt: "Proje (opsiyonel):"
+  add_success: "Kural başarıyla eklendi!"
+  edit_success: "Kural başarıyla güncellendi!"
+  remove_success: "Kural başarıyla silindi!"
+  sync_start: "Kurallar senkronize ediliyor..."
+  sync_complete: "Senkronizasyon tamamlandı! Eklenen: %d, Güncellenen: %d, Atlanan: %d"
+  sync_errors: "Hatalar:"
+
+reports:
+  monthly_title: "Aylık Rapor"
+  yearly_title: "Yıllık Rapor"
+  summary: "Özet"
+  by_category: "Kategorilere Göre"
+  by_currency: "Para Birimine Göre"
+  monthly_breakdown: "Aylık Dağılım"
+  no_data: "Veri bulunamadı."
+
+investment:
+  no_investments: "Henüz yatırım kaydı bulunmuyor."
+  header: "Yatırım Portföyü"
+
+pool:
+  empty: "Backlog boş."
+  header: "Backlog (Bekleyen İşlemler)"
+  items: "İşlemler"
+  unparsed: "İşlenemeyen Satırlar"
+  desc_prompt: "Açıklama:"
+  amount_prompt: "Tutar (opsiyonel):"
+  month_prompt: "Beklenen ay (opsiyonel):"
+  tags_prompt: "Etiketler:"
+  add_success: "Backlog'a eklendi!"
+  move_success: "Satır %d ay %s'e taşındı!"
+  remove_success: "Backlog'dan silindi!"
+
+validation:
+  header: "Validasyon Sonuçları"
+  unparsed_header: "İşlenemeyen Satırlar"
+  errors_header: "Hatalar"
+  all_ok: "✓ Tüm dosyalar doğru formatta!"
+
+status:
+  header: "Durum Özeti"
+  footer: "Detaylı rapor için 'spendgrid report' komutunu kullanın."
