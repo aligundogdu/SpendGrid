@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"spendgrid/internal/i18n"
@@ -24,7 +25,7 @@ func Init() error {
 	fmt.Print(i18n.T("commands.init.confirm") + " ")
 	reader := bufio.NewReader(os.Stdin)
 	response, _ := reader.ReadString('\n')
-	response = response[:len(response)-1] // Remove newline
+	response = strings.TrimSpace(response)
 
 	// Check response - accept both language-specific and universal forms
 	yes := i18n.T("common.yes")
