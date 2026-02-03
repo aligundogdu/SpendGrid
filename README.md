@@ -48,10 +48,61 @@ SpendGrid is a **local-first, file-based** financial management tool designed fo
 
 ### Installation
 
+#### Option 1: Homebrew (Recommended for macOS/Linux)
+
+```bash
+brew tap aligundogdu/spendgrid
+brew install spendgrid
+```
+
+To upgrade:
+```bash
+brew upgrade spendgrid
+```
+
+#### Option 2: Install Script
+
+One-line installation (works on macOS and Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aligundogdu/SpendGrid/main/install.sh | bash
+```
+
+This will automatically detect your OS and architecture, download the appropriate binary, and install it to `/usr/local/bin`.
+
+#### Option 3: Manual Download
+
+Download the pre-built binary for your system from the [Releases](https://github.com/aligundogdu/SpendGrid/releases) page:
+
+**macOS (Intel):**
+```bash
+curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/latest/download/spendgrid-darwin-amd64
+chmod +x spendgrid
+sudo mv spendgrid /usr/local/bin/
+```
+
+**macOS (Apple Silicon):**
+```bash
+curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/latest/download/spendgrid-darwin-arm64
+chmod +x spendgrid
+sudo mv spendgrid /usr/local/bin/
+```
+
+**Linux:**
+```bash
+curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/latest/download/spendgrid-linux-amd64
+chmod +x spendgrid
+sudo mv spendgrid /usr/local/bin/
+```
+
+#### Option 4: Build from Source
+
+If you prefer to build from source:
+
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/spendgrid.git
-cd spendgrid/cli-app
+git clone https://github.com/aligundogdu/SpendGrid.git
+cd SpendGrid/cli-app
 
 # Build the binary
 go build -o spendgrid cmd/spendgrid/main.go

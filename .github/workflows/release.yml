@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+            suffix: darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            suffix: darwin-arm64
+          - goos: linux
+            goarch: amd64
+            suffix: linux-amd64
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+    
+    - name: Build binary
+      run: |
+        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o spendgrid-${{ matrix.suffix }} cmd/spendgrid/main.go
+    
+    - name: Calculate checksum
+      id: checksum
+      run: |
+        sha256sum spendgrid-${{ matrix.suffix }} > spendgrid-${{ matrix.suffix }}.sha256
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries
+        path: spendgrid-*
+        retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: binaries
+        path: ./binaries
+    
+    - name: Generate checksums file
+      run: |
+        cd binaries
+        sha256sum spendgrid-* > checksums.txt
+        cat checksums.txt
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ./binaries/spendgrid-*
+        body: |
+          ## Installation
+          
+          ### macOS / Linux (Install Script)
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/aligundogdu/SpendGrid/main/install.sh | bash
+          ```
+          
+          ### Manual Download
+          Download the appropriate binary for your system:
+          
+          **macOS Intel:**
+          ```bash
+          curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/download/${{ github.ref_name }}/spendgrid-darwin-amd64
+          chmod +x spendgrid
+          sudo mv spendgrid /usr/local/bin/
+          ```
+          
+          **macOS Apple Silicon:**
+          ```bash
+          curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/download/${{ github.ref_name }}/spendgrid-darwin-arm64
+          chmod +x spendgrid
+          sudo mv spendgrid /usr/local/bin/
+          ```
+          
+          **Linux:**
+          ```bash
+          curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/download/${{ github.ref_name }}/spendgrid-linux-amd64
+          chmod +x spendgrid
+          sudo mv spendgrid /usr/local/bin/
+          ```
+          
+          ### Homebrew
+          ```bash
+          brew tap aligundogdu/spendgrid
+          brew install spendgrid
+          ```
+          
+          ## Checksums
+          ```
+          $(cat binaries/checksums.txt)
+          ```
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
