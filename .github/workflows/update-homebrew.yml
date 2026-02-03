@@ -1,0 +1,102 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-homebrew:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout SpendGrid repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get release info
+      id: release
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Downloading binaries for $VERSION..."
+        
+        # Download all binaries
+        curl -sL -o spendgrid-darwin-amd64 "https://github.com/${{ github.repository }}/releases/download/$VERSION/spendgrid-darwin-amd64"
+        curl -sL -o spendgrid-darwin-arm64 "https://github.com/${{ github.repository }}/releases/download/$VERSION/spendgrid-darwin-arm64"
+        curl -sL -o spendgrid-linux-amd64 "https://github.com/${{ github.repository }}/releases/download/$VERSION/spendgrid-linux-amd64"
+        
+        # Calculate SHA256 hashes
+        echo "sha256_darwin_amd64=$(sha256sum spendgrid-darwin-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+        echo "sha256_darwin_arm64=$(sha256sum spendgrid-darwin-arm64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+        echo "sha256_linux_amd64=$(sha256sum spendgrid-linux-amd64 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+    - name: Checkout Homebrew tap repo
+      uses: actions/checkout@v4
+      with:
+        repository: aligundogdu/homebrew-spendgrid
+        token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        path: homebrew-tap
+
+    - name: Update formula
+      run: |
+        VERSION="${{ steps.release.outputs.version }}"
+        SHA256_DARWIN_AMD64="${{ steps.release.outputs.sha256_darwin_amd64 }}"
+        SHA256_DARWIN_ARM64="${{ steps.release.outputs.sha256_darwin_arm64 }}"
+        SHA256_LINUX_AMD64="${{ steps.release.outputs.sha256_linux_amd64 }}"
+        
+        cat > homebrew-tap/spendgrid.rb << EOF
+        class Spendgrid < Formula
+          desc "Financial Projection and Cash Flow Management CLI Tool"
+          homepage "https://github.com/aligundogdu/SpendGrid"
+          version "${VERSION#v}"
+          license "MIT"
+
+          if OS.mac? && Hardware::CPU.intel?
+            url "https://github.com/aligundogdu/SpendGrid/releases/download/${VERSION}/spendgrid-darwin-amd64"
+            sha256 "${SHA256_DARWIN_AMD64}"
+          elsif OS.mac? && Hardware::CPU.arm?
+            url "https://github.com/aligundogdu/SpendGrid/releases/download/${VERSION}/spendgrid-darwin-arm64"
+            sha256 "${SHA256_DARWIN_ARM64}"
+          elsif OS.linux? && Hardware::CPU.intel?
+            url "https://github.com/aligundogdu/SpendGrid/releases/download/${VERSION}/spendgrid-linux-amd64"
+            sha256 "${SHA256_LINUX_AMD64}"
+          end
+
+          def install
+            bin.install Dir["spendgrid-*"].first => "spendgrid"
+          end
+
+          def post_install
+            ohai "SpendGrid installed! Run 'spendgrid init' to get started."
+          end
+
+          def caveats
+            <<~EOS
+              SpendGrid has been installed!
+              
+              To get started:
+                spendgrid init              # Initialize your database
+                spendgrid --help          # Show all available commands
+                spendgrid status          # Check database status
+              
+              Your data will be stored in: ~/.local/share/spendgrid
+              
+              For more information:
+                https://github.com/aligundogdu/SpendGrid
+            EOS
+          end
+
+          test do
+            system "#{bin}/spendgrid", "version"
+          end
+        end
+        EOF
+
+    - name: Commit and push changes
+      run: |
+        cd homebrew-tap
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add spendgrid.rb
+        git commit -m "Update formula to ${{ steps.release.outputs.version }}"
+        git push origin main
