@@ -41,11 +41,13 @@ jobs:
       run: |
         sha256sum spendgrid-${{ matrix.suffix }} > spendgrid-${{ matrix.suffix }}.sha256
     
-    - name: Upload artifacts
+    - name: Upload binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: binaries
-        path: spendgrid-*
+        name: binary-${{ matrix.suffix }}
+        path: |
+          spendgrid-${{ matrix.suffix }}
+          spendgrid-${{ matrix.suffix }}.sha256
         retention-days: 1
 
   release:
@@ -58,7 +60,8 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        name: binaries
+        pattern: binary-*
+        merge-multiple: true
         path: ./binaries
     
     - name: Generate checksums file
@@ -76,7 +79,7 @@ jobs:
           
           ### macOS / Linux (Install Script)
           ```bash
-          curl -fsSL https://raw.githubusercontent.com/aligundogdu/SpendGrid/main/install.sh | bash
+          curl -fsSL https://raw.githubusercontent.com/aligundogdu/SpendGrid/main/cli-app/install.sh | bash
           ```
           
           ### Manual Download
