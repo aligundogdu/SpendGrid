@@ -1,18 +1,22 @@
 package i18n
 
 import (
+	"embed"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 	"spendgrid/internal/config"
 )
 
+// Embed locales directory
+//
+//go:embed locales/*.yml
+var localeFS embed.FS
+
 var (
 	translations map[string]interface{}
 	currentLang  string
-	basePath     string
 )
 
 // Load initializes the i18n system
@@ -28,9 +32,6 @@ func Load() error {
 		globalLang = detectLanguage()
 	}
 
-	// Set base path for locales
-	basePath = findLocalePath()
-
 	return LoadLanguage(globalLang)
 }
 
@@ -38,8 +39,9 @@ func Load() error {
 func LoadLanguage(lang string) error {
 	currentLang = lang
 
-	localePath := filepath.Join(basePath, fmt.Sprintf("%s.yml", lang))
-	data, err := os.ReadFile(localePath)
+	// Read from embedded filesystem
+	localeFile := fmt.Sprintf("locales/%s.yml", lang)
+	data, err := localeFS.ReadFile(localeFile)
 	if err != nil {
 		// Fallback to English
 		if lang != "en" {
@@ -80,27 +82,7 @@ func GetLanguage() string {
 	return currentLang
 }
 
-func findLocalePath() string {
-	// Try different possible paths
-	paths := []string{
-		"locales",
-		"../locales",
-		"../../locales",
-	}
-
-	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return "locales"
-}
-
 func detectLanguage() string {
-	// Check global config first
-	// TODO: Implement after global config is ready
-
 	// Check environment variable
 	if lang := os.Getenv("SPENDGRID_LANG"); lang != "" {
 		return lang
