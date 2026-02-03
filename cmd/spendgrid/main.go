@@ -22,7 +22,8 @@ import (
 	"spendgrid/internal/validator"
 )
 
-const version = "0.1.0"
+// version is set during build using -ldflags
+var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
