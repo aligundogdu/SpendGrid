@@ -48,7 +48,19 @@ SpendGrid is a **local-first, file-based** financial management tool designed fo
 
 ### Installation
 
-#### Option 1: Install Script (Recommended)
+#### Option 1: Homebrew (Recommended for macOS/Linux)
+
+```bash
+brew tap aligundogdu/spendgrid
+brew install spendgrid
+```
+
+To upgrade:
+```bash
+brew upgrade spendgrid
+```
+
+#### Option 2: Install Script
 
 One-line installation (works on macOS and Linux):
 
@@ -57,14 +69,6 @@ curl -fsSL https://raw.githubusercontent.com/aligundogdu/SpendGrid/main/cli-app/
 ```
 
 This will automatically detect your OS and architecture, download the appropriate binary, and install it to `/usr/local/bin`.
-
-#### Option 2: Homebrew (Coming Soon)
-
-> **Note:** Homebrew support is coming soon. After creating the `homebrew-spendgrid` tap repository, you'll be able to install via:
-> ```bash
-> brew tap aligundogdu/spendgrid
-> brew install spendgrid
-> ```
 
 #### Option 3: Manual Download
 
