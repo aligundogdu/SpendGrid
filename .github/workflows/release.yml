@@ -57,6 +57,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -71,48 +73,121 @@ jobs:
         sha256sum spendgrid-* > checksums.txt
         cat checksums.txt
     
+    - name: Generate Changelog
+      id: changelog
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/}
+        
+        # Get previous tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        # If no previous tag, get all commits
+        if [ -z "$PREVIOUS_TAG" ]; then
+          COMMITS=$(git log --pretty=format:"%s")
+        else
+          COMMITS=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"%s")
+        fi
+        
+        # Categorize commits
+        FEATURES=$(echo "$COMMITS" | grep "^feat:" | sed 's/^feat: /- /')
+        FIXES=$(echo "$COMMITS" | grep "^fix:" | sed 's/^fix: /- /')
+        DOCS=$(echo "$COMMITS" | grep "^docs:" | sed 's/^docs: /- /')
+        BUILD=$(echo "$COMMITS" | grep "^build:" | sed 's/^build: /- /')
+        CI=$(echo "$COMMITS" | grep "^ci:" | sed 's/^ci: /- /')
+        REFACTOR=$(echo "$COMMITS" | grep "^refactor:" | sed 's/^refactor: /- /')
+        TEST=$(echo "$COMMITS" | grep "^test:" | sed 's/^test: /- /')
+        OTHER=$(echo "$COMMITS" | grep -v "^feat:" | grep -v "^fix:" | grep -v "^docs:" | grep -v "^build:" | grep -v "^ci:" | grep -v "^refactor:" | grep -v "^test:" | sed 's/^/- /')
+        
+        # Build changelog
+        CHANGELOG="## What's Changed in ${VERSION}\n\n"
+        
+        if [ -n "$FEATURES" ]; then
+          CHANGELOG+="### Features\n${FEATURES}\n\n"
+        fi
+        
+        if [ -n "$FIXES" ]; then
+          CHANGELOG+="### Bug Fixes\n${FIXES}\n\n"
+        fi
+        
+        if [ -n "$DOCS" ]; then
+          CHANGELOG+="### Documentation\n${DOCS}\n\n"
+        fi
+        
+        if [ -n "$BUILD" ]; then
+          CHANGELOG+="### Build\n${BUILD}\n\n"
+        fi
+        
+        if [ -n "$CI" ]; then
+          CHANGELOG+="### CI/CD\n${CI}\n\n"
+        fi
+        
+        if [ -n "$REFACTOR" ]; then
+          CHANGELOG+="### Refactoring\n${REFACTOR}\n\n"
+        fi
+        
+        if [ -n "$TEST" ]; then
+          CHANGELOG+="### Tests\n${TEST}\n\n"
+        fi
+        
+        if [ -n "$OTHER" ]; then
+          CHANGELOG+="### Other Changes\n${OTHER}\n\n"
+        fi
+        
+        # Save to file
+        echo -e "$CHANGELOG" > changelog.txt
+        cat changelog.txt
+        
+        # Set output for next step
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat changelog.txt >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: ./binaries/spendgrid-*
         body: |
+          ${{ steps.changelog.outputs.changelog }}
+
+          ---
+
           ## Installation
-          
+
           ### macOS / Linux (Install Script)
           ```bash
           curl -fsSL https://raw.githubusercontent.com/aligundogdu/SpendGrid/main/cli-app/install.sh | bash
           ```
-          
+
           ### Manual Download
           Download the appropriate binary for your system:
-          
+
           **macOS Intel:**
           ```bash
           curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/download/${{ github.ref_name }}/spendgrid-darwin-amd64
           chmod +x spendgrid
           sudo mv spendgrid /usr/local/bin/
           ```
-          
+
           **macOS Apple Silicon:**
           ```bash
           curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/download/${{ github.ref_name }}/spendgrid-darwin-arm64
           chmod +x spendgrid
           sudo mv spendgrid /usr/local/bin/
           ```
-          
+
           **Linux:**
           ```bash
           curl -L -o spendgrid https://github.com/aligundogdu/SpendGrid/releases/download/${{ github.ref_name }}/spendgrid-linux-amd64
           chmod +x spendgrid
           sudo mv spendgrid /usr/local/bin/
           ```
-          
+
           ### Homebrew
           ```bash
           brew tap aligundogdu/spendgrid
           brew install spendgrid
           ```
-          
+
           ## Checksums
           ```
           $(cat binaries/checksums.txt)
