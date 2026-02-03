@@ -286,3 +286,94 @@ func parseTags(input string) []string {
 	}
 	return tags
 }
+
+// AddRuleDirect adds a rule from command line arguments
+func AddRuleDirect(args []string) error {
+	if len(args) < 4 {
+		return fmt.Errorf("insufficient arguments: name, amount, currency, type required")
+	}
+
+	name := args[0]
+	amountStr := args[1]
+	currency := strings.ToUpper(args[2])
+	ruleType := strings.ToLower(args[3])
+
+	// Validate type
+	if ruleType != "income" && ruleType != "expense" {
+		return fmt.Errorf("type must be 'income' or 'expense'")
+	}
+
+	// Parse amount
+	amount, err := strconv.ParseFloat(amountStr, 64)
+	if err != nil {
+		return fmt.Errorf("invalid amount: %v", err)
+	}
+
+	// Parse optional flags
+	day := 1
+	var tags []string
+	project := ""
+
+	for i := 4; i < len(args); i++ {
+		switch args[i] {
+		case "--day":
+			if i+1 < len(args) {
+				d, err := strconv.Atoi(args[i+1])
+				if err == nil && d >= 1 && d <= 31 {
+					day = d
+				}
+				i++
+			}
+		case "--tags":
+			if i+1 < len(args) {
+				tagList := strings.Split(args[i+1], ",")
+				for _, tag := range tagList {
+					tag = strings.TrimSpace(tag)
+					if tag != "" {
+						tags = append(tags, tag)
+					}
+				}
+				i++
+			}
+		case "--project":
+			if i+1 < len(args) {
+				project = args[i+1]
+				i++
+			}
+		}
+	}
+
+	id := GenerateRuleID(name)
+
+	rule := Rule{
+		ID:       id,
+		Name:     name,
+		Amount:   amount,
+		Currency: currency,
+		Type:     ruleType,
+		Tags:     tags,
+		Project:  project,
+		Schedule: Schedule{
+			Frequency: "monthly",
+			Day:       day,
+		},
+		Active: true,
+	}
+
+	if err := AddRule(rule); err != nil {
+		return err
+	}
+
+	fmt.Printf("Rule added successfully: %s (ID: %s)\n", name, id)
+	fmt.Printf("  Amount: %.2f %s\n", amount, currency)
+	fmt.Printf("  Type: %s\n", ruleType)
+	fmt.Printf("  Schedule: Monthly on day %d\n", day)
+	if len(tags) > 0 {
+		fmt.Printf("  Tags: %s\n", strings.Join(tags, ", "))
+	}
+	if project != "" {
+		fmt.Printf("  Project: %s\n", project)
+	}
+
+	return nil
+}

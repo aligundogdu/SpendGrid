@@ -206,9 +206,25 @@ func handleRules(args []string) {
 			os.Exit(1)
 		}
 	case "add":
-		if err := rules.AddRuleInteractive(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+		if len(args) == 1 {
+			// Interactive mode
+			if err := rules.AddRuleInteractive(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			// Direct mode: spendgrid rules add <name> <amount> <currency> <type> [flags]
+			if len(args) < 5 {
+				fmt.Fprintf(os.Stderr, "Usage: spendgrid rules add <name> <amount> <currency> <type> [flags]\n")
+				fmt.Fprintf(os.Stderr, "  type: income or expense\n")
+				fmt.Fprintf(os.Stderr, "  flags: --day <day> --tags <tag1,tag2> --project <project>\n")
+				fmt.Fprintf(os.Stderr, "Example: spendgrid rules add \"Maaş\" 50000 TRY income --day 1 --tags maaş,gelir\n")
+				os.Exit(1)
+			}
+			if err := rules.AddRuleDirect(args[1:]); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
 		}
 	case "edit":
 		if len(args) < 2 {
