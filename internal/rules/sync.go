@@ -109,13 +109,9 @@ func syncMonth(year, month int, rules []Rule) (*SyncResult, error) {
 	for i := rulesStartIdx + 1; i < len(lines); i++ {
 		line := lines[i]
 		if re.MatchString(line) {
-			// Check if this line is checked [x]
-			if strings.Contains(line, "- [x]") {
-				// This is a user-modified line, extract rule info if possible
-				// For now, just mark as existing
-				existingRules[line] = true
-				existingLines[line] = i
-			}
+			// Track ALL rule lines, both checked [x] and unchecked [ ]
+			existingRules[line] = true
+			existingLines[line] = i
 		}
 	}
 

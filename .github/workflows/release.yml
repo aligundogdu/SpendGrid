@@ -34,7 +34,7 @@ jobs:
     
     - name: Build binary
       run: |
-        VERSION=${GITHUB_REF#refs/tags/}
+        VERSION=${GITHUB_REF#refs/tags/v}
         GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X main.version=$VERSION" -o spendgrid-${{ matrix.suffix }} cmd/spendgrid/main.go
     
     - name: Calculate checksum
