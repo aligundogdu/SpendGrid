@@ -366,3 +366,58 @@ func isToday(date time.Time) bool {
 		date.Month() == today.Month() &&
 		date.Day() == today.Day()
 }
+
+// ShowRates displays exchange rates in a table format
+func ShowRates() error {
+	cache, err := LoadCache()
+	if err != nil {
+		return fmt.Errorf("failed to load exchange rates: %v", err)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	todayRates, exists := cache.Rates[today]
+
+	if !exists || len(todayRates) == 0 {
+		fmt.Println("No exchange rates found for today.")
+		fmt.Println("Run 'spendgrid exchange refresh' to fetch current rates.")
+		return nil
+	}
+
+	fmt.Printf("\n📊 Exchange Rates (%s)\n", today)
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Printf("%-10s %-15s %-15s\n", "Currency", "Rate (TRY)", "Rate (USD/EUR)")
+	fmt.Println(strings.Repeat("-", 50))
+
+	// Define display order
+	priorityCurrencies := []string{"USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "RUB"}
+
+	// Show priority currencies first
+	for _, currency := range priorityCurrencies {
+		if rate, ok := todayRates[currency]; ok {
+			fmt.Printf("%-10s %-15.4f %-15.4f\n", currency, rate, 1/rate)
+		}
+	}
+
+	// Show other currencies
+	fmt.Println(strings.Repeat("-", 50))
+	for currency, rate := range todayRates {
+		// Skip already shown and TRY
+		if currency == "TRY" {
+			continue
+		}
+		isPriority := false
+		for _, p := range priorityCurrencies {
+			if p == currency {
+				isPriority = true
+				break
+			}
+		}
+		if !isPriority {
+			fmt.Printf("%-10s %-15.4f %-15.4f\n", currency, rate, 1/rate)
+		}
+	}
+
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Println("\n💡 Tip: Use 'spendgrid exchange refresh' to update rates")
+	return nil
+}

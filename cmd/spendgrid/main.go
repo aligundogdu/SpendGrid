@@ -71,7 +71,10 @@ func main() {
 		handleReport(os.Args[2:])
 	case "exchange":
 		if len(os.Args) < 3 {
-			fmt.Fprintf(os.Stderr, "Usage: spendgrid exchange <refresh|set>\n")
+			fmt.Fprintf(os.Stderr, "Usage: spendgrid exchange [show|refresh|set]\n")
+			fmt.Fprintf(os.Stderr, "  show   - Display current exchange rates (default)\n")
+			fmt.Fprintf(os.Stderr, "  refresh - Fetch latest rates from API\n")
+			fmt.Fprintf(os.Stderr, "  set    - Set manual exchange rate\n")
 			os.Exit(1)
 		}
 		handleExchange(os.Args[2:])
@@ -307,13 +310,22 @@ func handleReport(args []string) {
 
 func handleExchange(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: spendgrid exchange <refresh|set>\n")
-		os.Exit(1)
+		// Default to show if no subcommand
+		if err := exchange.ShowRates(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	subcommand := args[0]
 
 	switch subcommand {
+	case "show", "list":
+		if err := exchange.ShowRates(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "refresh":
 		if err := exchange.RefreshRates(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

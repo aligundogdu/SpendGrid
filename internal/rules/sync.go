@@ -24,6 +24,12 @@ func SyncRules() (*SyncResult, error) {
 		Errors: []string{},
 	}
 
+	// Check if we're in a SpendGrid directory
+	if _, err := os.Stat(".spendgrid"); os.IsNotExist(err) {
+		// Not a SpendGrid directory, skip silently
+		return result, nil
+	}
+
 	// Load all active rules
 	rules, err := GetActiveRules()
 	if err != nil {
