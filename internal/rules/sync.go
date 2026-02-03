@@ -185,21 +185,31 @@ func formatRuleLine(rule *Rule, day int) string {
 		tags += " @" + rule.Project
 	}
 
-	return fmt.Sprintf("- [ ] %02d | %s | %s%.2f %s |%s",
+	// Include rule ID in the line (hidden in description field)
+	return fmt.Sprintf("- [ ] %02d | %s [%s] | %s%.2f %s |%s",
 		day,
 		rule.Name,
+		rule.ID,
 		sign,
 		abs(rule.Amount),
 		rule.Currency,
 		tags)
 }
 
-// isSameRule checks if two rule lines represent the same rule
-// This is a simple check based on name and day
+// isSameRule checks if two rule lines represent the same rule by ID
 func isSameRule(existing, new string) bool {
-	// Extract name from both lines
-	// Format: - [ ] DAY | NAME | AMOUNT CURRENCY | TAGS
+	// Extract rule ID from both lines
+	// Format: - [ ] DAY | NAME [ID] | AMOUNT CURRENCY | TAGS
 
+	existingID := extractRuleID(existing)
+	newID := extractRuleID(new)
+
+	// If both have IDs, compare by ID
+	if existingID != "" && newID != "" {
+		return existingID == newID
+	}
+
+	// Fallback to name comparison for old format lines
 	existingParts := strings.Split(existing, "|")
 	newParts := strings.Split(new, "|")
 
@@ -207,11 +217,29 @@ func isSameRule(existing, new string) bool {
 		return false
 	}
 
-	// Compare names (trim spaces)
 	existingName := strings.TrimSpace(existingParts[1])
 	newName := strings.TrimSpace(newParts[1])
 
 	return existingName == newName
+}
+
+// extractRuleID extracts the rule ID from a formatted line
+func extractRuleID(line string) string {
+	// Look for pattern [ID] in the line
+	re := regexp.MustCompile(`\[([^\]]+)\]`)
+	matches := re.FindAllStringSubmatch(line, -1)
+
+	for _, match := range matches {
+		if len(match) > 1 {
+			id := match[1]
+			// Skip if it's just "x" (checked status)
+			if id != "x" && id != " " {
+				return id
+			}
+		}
+	}
+
+	return ""
 }
 
 func getMonthName(month int) string {

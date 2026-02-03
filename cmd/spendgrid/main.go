@@ -38,6 +38,15 @@ func main() {
 
 	command := os.Args[1]
 
+	// Auto-sync rules on startup (except for init and certain commands)
+	if command != "init" && command != "version" && command != "--help" && command != "-h" {
+		if _, err := rules.SyncRules(); err != nil {
+			// Silent fail - don't block user on sync errors
+			// Just log to stderr
+			fmt.Fprintf(os.Stderr, "Warning: auto-sync failed: %v\n", err)
+		}
+	}
+
 	switch command {
 	case "init":
 		handleInit()
