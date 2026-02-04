@@ -159,3 +159,25 @@ func countUnparsedLines(year string, month int) int {
 	_, unparsed := parser.ParseMonthFile(string(content))
 	return len(unparsed)
 }
+
+// ShowStatusForPath displays the status for a specific directory path
+func ShowStatusForPath(dirPath string) error {
+	// Save current directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %v", err)
+	}
+
+	// Change to target directory
+	if err := os.Chdir(dirPath); err != nil {
+		return fmt.Errorf("failed to change directory: %v", err)
+	}
+
+	// Show status
+	err = ShowStatus()
+
+	// Change back to original directory
+	os.Chdir(originalDir)
+
+	return err
+}

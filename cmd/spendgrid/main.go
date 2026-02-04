@@ -13,10 +13,10 @@ import (
 	"spendgrid/internal/filesystem"
 	"spendgrid/internal/i18n"
 	"spendgrid/internal/investment"
+	"spendgrid/internal/last"
 	"spendgrid/internal/parser"
 	"spendgrid/internal/pool"
 	"spendgrid/internal/reports"
-	"spendgrid/internal/resume"
 	"spendgrid/internal/rules"
 	"spendgrid/internal/status"
 	"spendgrid/internal/transaction"
@@ -97,9 +97,11 @@ func main() {
 			os.Exit(1)
 		}
 		handleSet(os.Args[2:])
-	case "resume":
-		handleResume()
-		return
+	case "last":
+		if err := last.ShowRecentDirs(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	case "version", "--version", "-v":
 		fmt.Printf(i18n.Tfmt("commands.version.format", version))
 		fmt.Println()
@@ -149,7 +151,7 @@ func main() {
 	}
 
 	// Save current directory to recent list (if it's a SpendGrid directory)
-	if command != "resume" && command != "version" && command != "--version" && command != "-v" && command != "help" && command != "--help" && command != "-h" {
+	if command != "last" && command != "version" && command != "--version" && command != "-v" && command != "help" && command != "--help" && command != "-h" {
 		if err := config.SaveCurrentDirectory(); err != nil {
 			// Silent fail - don't bother user with this
 			_ = err
@@ -439,32 +441,6 @@ func handleStatus() {
 	}
 }
 
-func handleResume() {
-	selectedDir, err := resume.ShowRecentDirs()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if selectedDir == "" {
-		// User cancelled or no selection
-		return
-	}
-
-	// Change to the selected directory
-	fmt.Printf("\n📂 Dizin değiştiriliyor: %s\n", selectedDir)
-	if err := os.Chdir(selectedDir); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Cannot change directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Show status in new directory
-	fmt.Println("\n📊 Yeni dizinde durum:")
-	if err := status.ShowStatus(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-	}
-}
-
 func handleSet(args []string) {
 	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "Usage: spendgrid set config [key] [value]\n")
@@ -675,7 +651,7 @@ func printUsage() {
 	fmt.Println("  pool add          Add item to backlog")
 	fmt.Println("  pool move         Move item from backlog to month")
 	fmt.Println("  pool remove       Remove item from backlog")
-	fmt.Println("  resume            Show recent directories and switch")
+	fmt.Println("  last              Show last 10 SpendGrid directories")
 	fmt.Println("  validate          Validate all files")
 	fmt.Println("  status            Show database status")
 	fmt.Println("  set config        View or set global configuration")
