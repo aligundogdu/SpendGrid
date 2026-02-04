@@ -45,15 +45,45 @@ func SyncRules() (*SyncResult, error) {
 	currentYear := now.Year()
 	currentMonth := int(now.Month())
 
-	// Sync for current year (current month and future months)
-	for month := currentMonth; month <= 12; month++ {
-		r, err := syncMonth(currentYear, month, rules)
+	// Find the furthest end date among all rules
+	maxYear := currentYear
+	maxMonth := 12
+	for _, rule := range rules {
+		if rule.EndDate != "" {
+			endYear, endMonth, err := parseYearMonth(rule.EndDate)
+			if err == nil {
+				if endYear > maxYear || (endYear == maxYear && endMonth > maxMonth) {
+					maxYear = endYear
+					maxMonth = endMonth
+				}
+			}
+		}
+	}
+
+	// Sync from current month to max end date
+	year := currentYear
+	month := currentMonth
+	for {
+		// Sync this month
+		r, err := syncMonth(year, month, rules)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Sprintf("%04d-%02d: %v", currentYear, month, err))
+			result.Errors = append(result.Errors, fmt.Sprintf("%04d-%02d: %v", year, month, err))
 		} else {
 			result.Added += r.Added
 			result.Updated += r.Updated
 			result.Skipped += r.Skipped
+		}
+
+		// Move to next month
+		month++
+		if month > 12 {
+			month = 1
+			year++
+		}
+
+		// Stop if we've passed the max end date
+		if year > maxYear || (year == maxYear && month > maxMonth) {
+			break
 		}
 	}
 
@@ -187,10 +217,22 @@ func formatRuleLine(rule *Rule, day int) string {
 		tags += " @" + rule.Project
 	}
 
+	// Build description with metadata if available
+	description := rule.Name
+	if rule.Metadata != "" {
+		description += " [" + rule.Metadata + "]"
+	}
+	// Also show total amount if different from current amount (for installments)
+	if rule.TotalAmount > 0 && rule.TotalAmount != rule.Amount {
+		if rule.Metadata == "" {
+			description += fmt.Sprintf(" [Toplam: %.2f %s]", rule.TotalAmount, rule.Currency)
+		}
+	}
+
 	// Include rule ID in the line (hidden in description field)
 	return fmt.Sprintf("- [ ] %02d | %s [%s] | %s%.2f %s |%s",
 		day,
-		rule.Name,
+		description,
 		rule.ID,
 		sign,
 		abs(rule.Amount),

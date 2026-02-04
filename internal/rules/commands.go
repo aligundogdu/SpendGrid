@@ -101,6 +101,46 @@ func AddRuleInteractive() error {
 		}
 	}
 
+	// Ask about duration
+	fmt.Print("Tüm yıl boyunca mı? (e/h) [e]: ")
+	fullYear, _ := reader.ReadString('\n')
+	fullYear = strings.TrimSpace(strings.ToLower(fullYear))
+
+	startDate := ""
+	endDate := ""
+
+	if fullYear == "h" || fullYear == "hayır" || fullYear == "hayir" {
+		// Ask for start and end dates
+		fmt.Print("Başlangıç tarihi (YYYY-MM): ")
+		startDate, _ = reader.ReadString('\n')
+		startDate = strings.TrimSpace(startDate)
+
+		fmt.Print("Bitiş tarihi (YYYY-MM): ")
+		endDate, _ = reader.ReadString('\n')
+		endDate = strings.TrimSpace(endDate)
+	}
+
+	// Ask about installment/credit
+	fmt.Print("Taksitli/kredili ödeme mi? (e/h) [h]: ")
+	isInstallment, _ := reader.ReadString('\n')
+	isInstallment = strings.TrimSpace(strings.ToLower(isInstallment))
+
+	totalAmount := 0.0
+	metadata := ""
+
+	if isInstallment == "e" || isInstallment == "evet" {
+		fmt.Print("Toplam tutar (örn: 25000): ")
+		totalStr, _ := reader.ReadString('\n')
+		totalStr = strings.TrimSpace(totalStr)
+		if ta, err := strconv.ParseFloat(totalStr, 64); err == nil {
+			totalAmount = ta
+		}
+
+		fmt.Print("Açıklama (örn: 3 taksit - iPhone 15): ")
+		metadata, _ = reader.ReadString('\n')
+		metadata = strings.TrimSpace(metadata)
+	}
+
 	// Get tags
 	fmt.Print(i18n.T("rules.tags_prompt") + " ")
 	tagsInput, _ := reader.ReadString('\n')
@@ -124,14 +164,42 @@ func AddRuleInteractive() error {
 			Frequency: "monthly",
 			Day:       day,
 		},
-		Active: true,
+		Active:      true,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		TotalAmount: totalAmount,
+		Metadata:    metadata,
 	}
 
 	if err := AddRule(rule); err != nil {
 		return err
 	}
 
-	fmt.Println(i18n.T("rules.add_success"))
+	// Show summary
+	fmt.Println("\n" + strings.Repeat("=", 50))
+	fmt.Println("✓ Kural başarıyla eklendi!")
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Printf("Ad: %s\n", name)
+	fmt.Printf("Tutar: %.2f %s\n", amount, currency)
+	fmt.Printf("Tür: %s\n", ruleType)
+	fmt.Printf("Gün: %d\n", day)
+	if startDate != "" && endDate != "" {
+		fmt.Printf("Tarih aralığı: %s - %s\n", startDate, endDate)
+	} else {
+		fmt.Println("Süre: Tüm yıl")
+	}
+	if totalAmount > 0 {
+		fmt.Printf("Toplam tutar: %.2f %s\n", totalAmount, currency)
+	}
+	if metadata != "" {
+		fmt.Printf("Açıklama: %s\n", metadata)
+	}
+	if len(tags) > 0 {
+		fmt.Printf("Etiketler: %s\n", strings.Join(tags, ", "))
+	}
+	fmt.Printf("ID: %s\n", id)
+	fmt.Println(strings.Repeat("=", 50))
+
 	return nil
 }
 
@@ -313,6 +381,10 @@ func AddRuleDirect(args []string) error {
 	day := 1
 	var tags []string
 	project := ""
+	startDate := ""
+	endDate := ""
+	totalAmount := 0.0
+	metadata := ""
 
 	for i := 4; i < len(args); i++ {
 		switch args[i] {
@@ -340,6 +412,28 @@ func AddRuleDirect(args []string) error {
 				project = args[i+1]
 				i++
 			}
+		case "--start-date":
+			if i+1 < len(args) {
+				startDate = args[i+1]
+				i++
+			}
+		case "--end-date":
+			if i+1 < len(args) {
+				endDate = args[i+1]
+				i++
+			}
+		case "--total-amount":
+			if i+1 < len(args) {
+				if ta, err := strconv.ParseFloat(args[i+1], 64); err == nil {
+					totalAmount = ta
+				}
+				i++
+			}
+		case "--metadata":
+			if i+1 < len(args) {
+				metadata = args[i+1]
+				i++
+			}
 		}
 	}
 
@@ -357,7 +451,11 @@ func AddRuleDirect(args []string) error {
 			Frequency: "monthly",
 			Day:       day,
 		},
-		Active: true,
+		Active:      true,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		TotalAmount: totalAmount,
+		Metadata:    metadata,
 	}
 
 	if err := AddRule(rule); err != nil {
@@ -373,6 +471,18 @@ func AddRuleDirect(args []string) error {
 	}
 	if project != "" {
 		fmt.Printf("  Project: %s\n", project)
+	}
+	if startDate != "" {
+		fmt.Printf("  Start Date: %s\n", startDate)
+	}
+	if endDate != "" {
+		fmt.Printf("  End Date: %s\n", endDate)
+	}
+	if totalAmount > 0 {
+		fmt.Printf("  Total Amount: %.2f %s\n", totalAmount, currency)
+	}
+	if metadata != "" {
+		fmt.Printf("  Metadata: %s\n", metadata)
 	}
 
 	return nil

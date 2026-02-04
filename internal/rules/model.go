@@ -22,6 +22,11 @@ type Rule struct {
 	Project  string   `yaml:"project,omitempty"`
 	Schedule Schedule `yaml:"schedule"`
 	Active   bool     `yaml:"active"`
+	// New fields for installment/credit payments
+	StartDate   string  `yaml:"start_date,omitempty"` // Format: YYYY-MM
+	EndDate     string  `yaml:"end_date,omitempty"`   // Format: YYYY-MM
+	TotalAmount float64 `yaml:"total_amount,omitempty"`
+	Metadata    string  `yaml:"metadata,omitempty"` // e.g., "3 taksit - iPhone 15"
 }
 
 // Schedule defines when the rule should be applied
@@ -235,6 +240,25 @@ func (r *Rule) ShouldApplyInMonth(year, month int) bool {
 		return false
 	}
 
+	// Check date range for installment/credit payments
+	if r.StartDate != "" {
+		startYear, startMonth, err := parseYearMonth(r.StartDate)
+		if err == nil {
+			if year < startYear || (year == startYear && month < startMonth) {
+				return false
+			}
+		}
+	}
+
+	if r.EndDate != "" {
+		endYear, endMonth, err := parseYearMonth(r.EndDate)
+		if err == nil {
+			if year > endYear || (year == endYear && month > endMonth) {
+				return false
+			}
+		}
+	}
+
 	// Check if the day is valid for this month
 	day := r.Schedule.Day
 	if day < 1 {
@@ -248,6 +272,22 @@ func (r *Rule) ShouldApplyInMonth(year, month int) bool {
 	}
 
 	return true
+}
+
+// parseYearMonth parses YYYY-MM format
+func parseYearMonth(date string) (year, month int, err error) {
+	if len(date) < 7 {
+		return 0, 0, fmt.Errorf("invalid date format")
+	}
+	year, err = strconv.Atoi(date[:4])
+	if err != nil {
+		return 0, 0, err
+	}
+	month, err = strconv.Atoi(date[5:7])
+	if err != nil {
+		return 0, 0, err
+	}
+	return year, month, nil
 }
 
 // GetScheduledDay returns the actual day for this rule in a given month
