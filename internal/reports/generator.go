@@ -9,9 +9,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"spendgrid/internal/exchange"
 	"spendgrid/internal/i18n"
 	"spendgrid/internal/parser"
+)
+
+// Renk tanımlamaları
+var (
+	// Soft renkler (soluk)
+	softGreen = color.New(color.FgGreen)
+	softRed   = color.New(color.FgRed)
+
+	// Güçlü renkler (kalın ve parlak)
+	strongGreen = color.New(color.FgHiGreen, color.Bold)
+	strongRed   = color.New(color.FgHiRed, color.Bold)
+
+	// Nötr renkler
+	whiteBold = color.New(color.FgWhite, color.Bold)
 )
 
 // MonthlyReport represents a monthly financial report
@@ -350,12 +365,30 @@ func printMonthlyReport(report *MonthlyReport, unparsed []*parser.Transaction) {
 		totalIncome += incInBase
 		totalExpense += expInBase
 
-		fmt.Printf("%-20s %15.2f %15.2f\n", curr, inc, exp)
+		// Renkli yazdırma - Soft renkler
+		incomeStr := softGreen.Sprintf("%15.2f", inc)
+		expenseStr := softRed.Sprintf("%15.2f", exp)
+		fmt.Printf("%-20s %s %s\n", curr, incomeStr, expenseStr)
 	}
 
 	fmt.Println(strings.Repeat("-", 70))
-	fmt.Printf("%-20s %15.2f %15.2f\n", "TOTAL (TRY)", totalIncome, totalExpense)
-	fmt.Printf("%-20s %15.2f\n", "NET", totalIncome-totalExpense)
+
+	// TOTAL satırı - Soft renklerle
+	totalIncomeStr := softGreen.Sprintf("%15.2f", totalIncome)
+	totalExpenseStr := softRed.Sprintf("%15.2f", totalExpense)
+	whiteBold.Printf("%-20s ", "TOTAL (TRY)")
+	fmt.Printf("%s %s\n", totalIncomeStr, totalExpenseStr)
+
+	// NET satırı - Güçlü renklerle (bakiye)
+	net := totalIncome - totalExpense
+	whiteBold.Printf("%-20s ", "NET")
+	if net >= 0 {
+		// Artı bakiye -> Güçlü yeşil
+		fmt.Printf("%s\n", strongGreen.Sprintf("%15.2f", net))
+	} else {
+		// Eksi bakiye -> Güçlü kırmızı
+		fmt.Printf("%s\n", strongRed.Sprintf("%15.2f", net))
+	}
 
 	// By category
 	if len(report.ByCategory) > 0 {
@@ -407,8 +440,21 @@ func printYearlyReport(report *YearlyReport) {
 		}
 
 		net := totalIncome - totalExpense
-		fmt.Printf("%-10s %15.2f %15.2f %15.2f\n",
-			time.Month(m.Month).String(), totalIncome, totalExpense, net)
+
+		// Soft renklerle income ve expense
+		incomeStr := softGreen.Sprintf("%15.2f", totalIncome)
+		expenseStr := softRed.Sprintf("%15.2f", totalExpense)
+
+		// Net için güçlü renkler
+		var netStr string
+		if net >= 0 {
+			netStr = strongGreen.Sprintf("%15.2f", net)
+		} else {
+			netStr = strongRed.Sprintf("%15.2f", net)
+		}
+
+		fmt.Printf("%-10s %s %s %s\n",
+			time.Month(m.Month).String(), incomeStr, expenseStr, netStr)
 	}
 
 	// Yearly totals
@@ -423,7 +469,17 @@ func printYearlyReport(report *YearlyReport) {
 		totalExp += amt
 	}
 
-	fmt.Printf("%-10s %15.2f %15.2f %15.2f\n", "TOTAL", totalInc, totalExp, totalInc-totalExp)
+	// TOTAL satırı
+	whiteBold.Printf("%-10s ", "TOTAL")
+	fmt.Printf("%s %s ", softGreen.Sprintf("%15.2f", totalInc), softRed.Sprintf("%15.2f", totalExp))
+
+	// Net total
+	netTotal := totalInc - totalExp
+	if netTotal >= 0 {
+		fmt.Printf("%s\n", strongGreen.Sprintf("%15.2f", netTotal))
+	} else {
+		fmt.Printf("%s\n", strongRed.Sprintf("%15.2f", netTotal))
+	}
 
 	// By currency summary
 	fmt.Printf("\n%s\n", i18n.T("reports.by_currency"))
@@ -435,7 +491,11 @@ func printYearlyReport(report *YearlyReport) {
 	for _, curr := range allCurrencies {
 		inc := report.TotalIncome[curr]
 		exp := report.TotalExpenses[curr]
-		fmt.Printf("%-15s %15.2f %15.2f\n", curr, inc, exp)
+
+		incomeStr := softGreen.Sprintf("%15.2f", inc)
+		expenseStr := softRed.Sprintf("%15.2f", exp)
+
+		fmt.Printf("%-15s %s %s\n", curr, incomeStr, expenseStr)
 	}
 
 	fmt.Println()
