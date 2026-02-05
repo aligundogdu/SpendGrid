@@ -12,21 +12,53 @@ import (
 
 // Rule represents a recurring transaction rule
 type Rule struct {
-	ID       string   `yaml:"id"`
-	Name     string   `yaml:"name"`
-	Amount   float64  `yaml:"amount"`
-	Currency string   `yaml:"currency"`
-	Type     string   `yaml:"type"` // income or expense
-	Category string   `yaml:"category"`
-	Tags     []string `yaml:"tags"`
-	Project  string   `yaml:"project,omitempty"`
-	Schedule Schedule `yaml:"schedule"`
-	Active   bool     `yaml:"active"`
+	ID              string   `yaml:"id"`
+	Name            string   `yaml:"name"`
+	Amount          float64  `yaml:"amount"`
+	RemainingAmount float64  `yaml:"remaining_amount,omitempty"` // Kalan tutar (sistem etiketleri için)
+	Currency        string   `yaml:"currency"`
+	Type            string   `yaml:"type"` // income or expense
+	Category        string   `yaml:"category"`
+	Tags            []string `yaml:"tags"`
+	Project         string   `yaml:"project,omitempty"`
+	Schedule        Schedule `yaml:"schedule"`
+	Active          bool     `yaml:"active"`
 	// New fields for installment/credit payments
 	StartDate   string  `yaml:"start_date,omitempty"` // Format: YYYY-MM
 	EndDate     string  `yaml:"end_date,omitempty"`   // Format: YYYY-MM
 	TotalAmount float64 `yaml:"total_amount,omitempty"`
 	Metadata    string  `yaml:"metadata,omitempty"` // e.g., "3 taksit - iPhone 15"
+}
+
+// IsSystemTag checks if the rule has any system tags (#tag# format)
+func (r *Rule) IsSystemTag() bool {
+	for _, tag := range r.Tags {
+		if IsSystemTagFormat(tag) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetSystemTags returns all system tags (#tag# format) from the rule
+func (r *Rule) GetSystemTags() []string {
+	var systemTags []string
+	for _, tag := range r.Tags {
+		if IsSystemTagFormat(tag) {
+			systemTags = append(systemTags, tag)
+		}
+	}
+	return systemTags
+}
+
+// IsSystemTagFormat checks if a tag is in system format (#tag#)
+func IsSystemTagFormat(tag string) bool {
+	return len(tag) >= 3 && tag[0] == '#' && tag[len(tag)-1] == '#'
+}
+
+// ResetRemainingAmount resets the remaining amount to the original amount
+func (r *Rule) ResetRemainingAmount() {
+	r.RemainingAmount = r.Amount
 }
 
 // Schedule defines when the rule should be applied

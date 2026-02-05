@@ -75,6 +75,7 @@ func init() {
 	rootCmd.AddCommand(commands.ExchangeCmd)
 	rootCmd.AddCommand(commands.ConfigCmd)
 	rootCmd.AddCommand(commands.PoolCmd)
+	rootCmd.AddCommand(commands.PlanCmd)
 }
 
 func main() {

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"spendgrid/internal/parser"
 )
 
 // SyncResult holds the results of a sync operation
@@ -295,4 +297,84 @@ func getMonthName(month int) string {
 		return months[month]
 	}
 	return ""
+}
+
+// UpdateRemainingAmounts updates the remaining amounts for all system-tagged rules
+// by matching transactions in the given month/year
+func UpdateRemainingAmounts(year, month int) error {
+	// Load all active rules
+	rules, err := GetActiveRules()
+	if err != nil {
+		return fmt.Errorf("failed to load rules: %v", err)
+	}
+
+	// Filter rules with system tags
+	var systemRules []*Rule
+	for i := range rules {
+		if rules[i].IsSystemTag() {
+			systemRules = append(systemRules, &rules[i])
+		}
+	}
+
+	if len(systemRules) == 0 {
+		return nil // No system rules to process
+	}
+
+	// Load month transactions
+	monthFile := fmt.Sprintf("%02d.md", month)
+	yearDir := strconv.Itoa(year)
+	filePath := filepath.Join(yearDir, monthFile)
+
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist, reset all remaining amounts
+			for _, rule := range systemRules {
+				rule.ResetRemainingAmount()
+			}
+			return SaveRules(&RuleSet{Rules: rules})
+		}
+		return fmt.Errorf("failed to read month file: %v", err)
+	}
+
+	// Parse transactions
+	parsed, _ := parser.ParseMonthFile(string(content))
+
+	// Update remaining amounts for each system rule
+	for _, rule := range systemRules {
+		// Reset remaining amount to original
+		rule.ResetRemainingAmount()
+
+		// Get system tags for this rule
+		systemTags := rule.GetSystemTags()
+
+		// Find matching transactions and subtract from remaining
+		for _, tx := range parsed {
+			if hasMatchingSystemTag(tx.Tags, systemTags) {
+				// Convert transaction amount to rule's currency if needed
+				if tx.Currency == rule.Currency {
+					if rule.Type == "expense" && !tx.IsIncome() {
+						rule.RemainingAmount -= tx.Amount
+					} else if rule.Type == "income" && tx.IsIncome() {
+						rule.RemainingAmount -= tx.Amount
+					}
+				}
+			}
+		}
+	}
+
+	// Save updated rules
+	return SaveRules(&RuleSet{Rules: rules})
+}
+
+// hasMatchingSystemTag checks if transaction tags match any system tags
+func hasMatchingSystemTag(txTags, systemTags []string) bool {
+	for _, txTag := range txTags {
+		for _, sysTag := range systemTags {
+			if txTag == sysTag {
+				return true
+			}
+		}
+	}
+	return false
 }
