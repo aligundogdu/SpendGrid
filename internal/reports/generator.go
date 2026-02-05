@@ -17,9 +17,9 @@ import (
 
 // Renk tanımlamaları
 var (
-	// Soft renkler (soluk)
-	softGreen = color.New(color.FgGreen)
-	softRed   = color.New(color.FgRed)
+	// Soft renkler (soluk) - parlak versiyonlar
+	softGreen = color.New(color.FgHiGreen) // Parlak yeşil
+	softRed   = color.New(color.FgHiRed)   // Parlak kırmızı (koyu değil!)
 
 	// Güçlü renkler (kalın ve parlak)
 	strongGreen = color.New(color.FgHiGreen, color.Bold)
@@ -27,6 +27,10 @@ var (
 
 	// Nötr renkler
 	whiteBold = color.New(color.FgWhite, color.Bold)
+
+	// Background renkler (TOTAL satırı için)
+	bgWhite  = color.New(color.BgWhite, color.FgBlack)
+	bgYellow = color.New(color.BgYellow, color.FgBlack, color.Bold)
 )
 
 // MonthlyReport represents a monthly financial report
@@ -457,7 +461,7 @@ func printYearlyReport(report *YearlyReport) {
 			time.Month(m.Month).String(), incomeStr, expenseStr, netStr)
 	}
 
-	// Yearly totals
+	// Yearly totals - Background ile vurgulanmış
 	fmt.Println(strings.Repeat("-", 70))
 
 	totalInc := 0.0
@@ -469,17 +473,23 @@ func printYearlyReport(report *YearlyReport) {
 		totalExp += amt
 	}
 
-	// TOTAL satırı
-	whiteBold.Printf("%-10s ", "TOTAL")
-	fmt.Printf("%s %s ", softGreen.Sprintf("%15.2f", totalInc), softRed.Sprintf("%15.2f", totalExp))
-
-	// Net total
+	// TOTAL satırı - Sarı background ile vurgulu + renkli rakamlar
 	netTotal := totalInc - totalExp
+
+	// Background başlat
+	bgYellow.Printf("%-10s", "TOTAL")
+
+	// Renkli rakamlar (background'ın üzerinde)
+	fmt.Printf(" %s", softGreen.Sprintf("%15.2f", totalInc))
+	fmt.Printf(" %s", softRed.Sprintf("%15.2f", totalExp))
+
+	// Net total (güçlü renklerle)
 	if netTotal >= 0 {
-		fmt.Printf("%s\n", strongGreen.Sprintf("%15.2f", netTotal))
+		fmt.Printf(" %s", strongGreen.Sprintf("%15.2f", netTotal))
 	} else {
-		fmt.Printf("%s\n", strongRed.Sprintf("%15.2f", netTotal))
+		fmt.Printf(" %s", strongRed.Sprintf("%15.2f", netTotal))
 	}
+	fmt.Println() // Satır sonu
 
 	// By currency summary
 	fmt.Printf("\n%s\n", i18n.T("reports.by_currency"))
