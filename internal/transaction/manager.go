@@ -10,42 +10,69 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eiannone/keyboard"
+
+	"spendgrid/internal/cache"
 	"spendgrid/internal/currency"
 	"spendgrid/internal/i18n"
 	"spendgrid/internal/parser"
 )
 
-// AddTransaction adds a new transaction interactively
+// AddTransaction adds a new transaction interactively with real-time autocomplete
 func AddTransaction() error {
 	// Check if we're in a spendgrid directory
 	if _, err := os.Stat(".spendgrid"); err != nil {
 		return fmt.Errorf("not a spendgrid directory. Run 'spendgrid init' first")
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-
 	// Get current month file
 	monthFile := parser.GetCurrentMonthFile()
 	currentYear := strconv.Itoa(time.Now().Year())
 	filePath := filepath.Join(currentYear, monthFile)
 
-	// Ask for day
-	fmt.Print(i18n.T("transaction.day_prompt") + " ")
-	dayStr, _ := reader.ReadString('\n')
+	// Load and refresh cache from existing transactions
+	cacheStore, err := cache.LoadCache()
+	if err != nil {
+		cacheStore = &cache.Cache{Tags: []string{}, Projects: []string{}}
+	}
+
+	// Scan existing files to populate cache
+	if err := refreshCacheFromFiles(cacheStore); err != nil {
+		// Non-fatal, continue with empty cache
+		fmt.Fprintf(os.Stderr, "Warning: could not scan existing files: %v\n", err)
+	}
+
+	// Ask for day (default to today)
+	today := time.Now().Day()
+	fmt.Printf("%s [%d]: ", i18n.T("transaction.day_prompt"), today)
+	dayStr, err := readSimpleLine()
+	if err != nil {
+		return fmt.Errorf("error reading day: %v", err)
+	}
 	dayStr = strings.TrimSpace(dayStr)
-	day, err := strconv.Atoi(dayStr)
-	if err != nil || day < 1 || day > 31 {
-		return fmt.Errorf("invalid day: %s", dayStr)
+	day := today
+	if dayStr != "" {
+		parsedDay, err := strconv.Atoi(dayStr)
+		if err != nil || parsedDay < 1 || parsedDay > 31 {
+			return fmt.Errorf("invalid day: %s", dayStr)
+		}
+		day = parsedDay
 	}
 
 	// Ask for description
-	fmt.Print(i18n.T("transaction.description_prompt") + " ")
-	desc, _ := reader.ReadString('\n')
+	fmt.Println(i18n.T("transaction.description_prompt"))
+	desc, err := readSimpleLine()
+	if err != nil {
+		return fmt.Errorf("error reading description: %v", err)
+	}
 	desc = strings.TrimSpace(desc)
 
 	// Ask for amount and currency
-	fmt.Print(i18n.T("transaction.amount_prompt") + " ")
-	amountInput, _ := reader.ReadString('\n')
+	fmt.Println(i18n.T("transaction.amount_prompt"))
+	amountInput, err := readSimpleLine()
+	if err != nil {
+		return fmt.Errorf("error reading amount: %v", err)
+	}
 	amountInput = strings.TrimSpace(amountInput)
 
 	amount, curr, err := parseAmountInput(amountInput)
@@ -56,21 +83,30 @@ func AddTransaction() error {
 	// Normalize currency
 	curr = currency.Normalize(curr)
 
-	// Ask for tags
-	fmt.Print(i18n.T("transaction.tags_prompt") + " ")
-	tagsInput, _ := reader.ReadString('\n')
-	tagsInput = strings.TrimSpace(tagsInput)
+	// Ask for tags with real-time autocomplete
+	fmt.Println(i18n.T("transaction.tags_prompt") + " ")
+	fmt.Println("  (Type to filter, Tab to autocomplete, 1-9 to select, Enter to confirm)")
+	tagsInput, err := readWithAutocomplete("  > ", cacheStore.GetTags(), "#")
+	if err != nil {
+		return fmt.Errorf("error reading tags: %v", err)
+	}
 	tags := parseTags(tagsInput)
 
-	// Ask for projects
-	fmt.Print(i18n.T("transaction.projects_prompt") + " ")
-	projInput, _ := reader.ReadString('\n')
-	projInput = strings.TrimSpace(projInput)
+	// Ask for projects with real-time autocomplete
+	fmt.Println(i18n.T("transaction.projects_prompt") + " ")
+	fmt.Println("  (Type to filter, Tab to autocomplete, 1-9 to select, Enter to confirm)")
+	projInput, err := readWithAutocomplete("  > ", cacheStore.GetProjects(), "@")
+	if err != nil {
+		return fmt.Errorf("error reading projects: %v", err)
+	}
 	projects := parseProjects(projInput)
 
 	// Ask for note (optional)
-	fmt.Print(i18n.T("transaction.note_prompt") + " ")
-	note, _ := reader.ReadString('\n')
+	fmt.Println(i18n.T("transaction.note_prompt"))
+	note, err := readSimpleLine()
+	if err != nil {
+		return fmt.Errorf("error reading note: %v", err)
+	}
 	note = strings.TrimSpace(note)
 
 	// Create transaction
@@ -101,6 +137,246 @@ func AddTransaction() error {
 
 	fmt.Println(i18n.T("transaction.add_success"))
 	return nil
+}
+
+// readSimpleLine reads a line of input using keyboard mode (for consistency)
+func readSimpleLine() (string, error) {
+	if err := keyboard.Open(); err != nil {
+		// Fallback to regular input
+		reader := bufio.NewReader(os.Stdin)
+		return reader.ReadString('\n')
+	}
+	defer keyboard.Close()
+
+	var input []rune
+	for {
+		char, key, err := keyboard.GetKey()
+		if err != nil {
+			return "", err
+		}
+
+		switch key {
+		case keyboard.KeyEnter:
+			fmt.Println()
+			return string(input), nil
+		case keyboard.KeyCtrlC, keyboard.KeyEsc:
+			return "", fmt.Errorf("cancelled")
+		case keyboard.KeyBackspace, keyboard.KeyBackspace2:
+			if len(input) > 0 {
+				input = input[:len(input)-1]
+				fmt.Print("\b \b")
+			}
+		default:
+			if char != 0 {
+				input = append(input, char)
+				fmt.Printf("%c", char)
+			}
+		}
+	}
+}
+
+// readWithAutocomplete reads input with real-time autocomplete suggestions
+// prefix: "#" for tags, "@" for projects
+func readWithAutocomplete(prompt string, items []string, prefix string) (string, error) {
+	// Save terminal state and open keyboard
+	if err := keyboard.Open(); err != nil {
+		// Fallback to regular input if keyboard fails
+		fmt.Print(prompt)
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		return strings.TrimSpace(input), nil
+	}
+	defer keyboard.Close()
+
+	var input []rune
+	selectedIndex := -1
+	matches := []string{}
+	suggestionsShown := false
+
+	fmt.Print(prompt)
+
+	for {
+		char, key, err := keyboard.GetKey()
+		if err != nil {
+			return "", err
+		}
+
+		switch key {
+		case keyboard.KeyEnter:
+			// Clear suggestions if shown
+			if suggestionsShown {
+				clearSuggestions()
+			}
+			fmt.Println()
+			result := string(input)
+			if selectedIndex >= 0 && selectedIndex < len(matches) {
+				result = prefix + matches[selectedIndex]
+			}
+			return result, nil
+
+		case keyboard.KeyCtrlC, keyboard.KeyEsc:
+			if suggestionsShown {
+				clearSuggestions()
+			}
+			fmt.Println("\nCancelled")
+			return "", fmt.Errorf("cancelled")
+
+		case keyboard.KeyBackspace, keyboard.KeyBackspace2:
+			if len(input) > 0 {
+				input = input[:len(input)-1]
+				selectedIndex = -1
+				suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
+			}
+
+		case keyboard.KeyTab:
+			// Autocomplete with first match
+			if len(matches) > 0 {
+				input = []rune(prefix + matches[0])
+				selectedIndex = 0
+				suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
+			}
+
+		case keyboard.KeyArrowUp:
+			if selectedIndex > 0 {
+				selectedIndex--
+				suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
+			}
+
+		case keyboard.KeyArrowDown:
+			if selectedIndex < len(matches)-1 {
+				selectedIndex++
+				suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
+			}
+
+		default:
+			// Regular character input
+			if char != 0 {
+				// Handle number keys 1-9 for quick selection
+				if char >= '1' && char <= '9' {
+					idx := int(char - '1')
+					if idx < len(matches) {
+						input = []rune(prefix + matches[idx])
+						selectedIndex = idx
+						suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
+						continue
+					}
+				}
+
+				input = append(input, char)
+				selectedIndex = -1
+
+				// Filter matches based on input (without prefix)
+				searchTerm := strings.TrimPrefix(string(input), prefix)
+				matches = filterItems(items, searchTerm)
+
+				suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
+			}
+		}
+	}
+}
+
+// clearSuggestions clears the suggestions line from the terminal
+func clearSuggestions() {
+	// Move cursor down one line, clear it, move back up
+	fmt.Print("\n\033[K\033[F")
+}
+
+// updateDisplay updates the terminal display with current input and suggestions
+// Returns true if suggestions were shown
+func updateDisplay(prompt string, input []rune, matches []string, selectedIndex int, prefix string) bool {
+	// Clear current line and move cursor to beginning
+	fmt.Printf("\r\033[K")
+
+	// Print prompt and current input
+	fmt.Printf("%s%s", prompt, string(input))
+
+	// Show suggestions below
+	if len(matches) > 0 {
+		// Move to next line
+		fmt.Println()
+		// Clear the entire line
+		fmt.Printf("\033[2K")
+		// Move to beginning of line
+		fmt.Printf("\r")
+
+		// Show up to 5 matches
+		maxShow := 5
+		if len(matches) < maxShow {
+			maxShow = len(matches)
+		}
+
+		for i := 0; i < maxShow; i++ {
+			if i == selectedIndex {
+				// Inverted colors for selected item
+				fmt.Printf("\033[7m %d. %s%s \033[0m", i+1, prefix, matches[i])
+			} else {
+				fmt.Printf(" %d. %s%s", i+1, prefix, matches[i])
+			}
+		}
+
+		// Move cursor back up to input line
+		fmt.Printf("\033[F")
+		// Move cursor to end of input (after the prompt)
+		fmt.Printf("\033[%dC", len(prompt)+len(input))
+		return true
+	}
+	return false
+}
+
+// filterItems returns items that contain the search term (case-insensitive)
+func filterItems(items []string, searchTerm string) []string {
+	if searchTerm == "" {
+		return items
+	}
+
+	searchTerm = strings.ToLower(searchTerm)
+	var matches []string
+
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(item), searchTerm) {
+			matches = append(matches, item)
+		}
+	}
+
+	return matches
+}
+
+// refreshCacheFromFiles scans all transaction files and populates cache
+func refreshCacheFromFiles(cacheStore *cache.Cache) error {
+	// Get current year
+	currentYear := strconv.Itoa(time.Now().Year())
+
+	// Walk through year directory
+	return filepath.Walk(currentYear, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors, continue walking
+		}
+
+		if info.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+
+		// Read file content
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil // Skip unreadable files
+		}
+
+		// Parse transactions
+		parsed, _ := parser.ParseMonthFile(string(content))
+
+		// Extract tags and projects
+		for _, tx := range parsed {
+			for _, tag := range tx.Tags {
+				cacheStore.AddTag(tag)
+			}
+			for _, proj := range tx.Projects {
+				cacheStore.AddProject(proj)
+			}
+		}
+
+		return nil
+	})
 }
 
 // AddDirectTransaction adds a transaction from a direct input string
@@ -522,7 +798,20 @@ func autoSaveTagsAndProjects(tags, projects []string) error {
 		}
 	}
 
-	return nil
+	// Also save to cache for autocomplete
+	cacheStore, err := cache.LoadCache()
+	if err != nil {
+		return err
+	}
+
+	for _, tag := range tags {
+		cacheStore.AddTag(tag)
+	}
+	for _, proj := range projects {
+		cacheStore.AddProject(proj)
+	}
+
+	return cacheStore.SaveCache()
 }
 
 func appendToYamlList(filePath, key string, items []string) error {
@@ -558,4 +847,12 @@ func appendToYamlList(filePath, key string, items []string) error {
 	}
 
 	return nil
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

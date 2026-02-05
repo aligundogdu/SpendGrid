@@ -12,8 +12,6 @@ import (
 	"spendgrid/internal/i18n"
 )
 
-const version = "0.1.0"
-
 // Init initializes SpendGrid in the current directory
 func Init() error {
 	// Check if already initialized
@@ -66,7 +64,12 @@ func createDirectoryStructure() error {
 	}
 
 	// Create .spendgrid version file
-	if err := os.WriteFile(".spendgrid", []byte(version+"\n"), 0644); err != nil {
+	// Format: schema_version build_timestamp
+	schemaVersion := "1"
+	buildTimestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	versionInfo := fmt.Sprintf("%s %s\n", schemaVersion, buildTimestamp)
+
+	if err := os.WriteFile(".spendgrid", []byte(versionInfo), 0644); err != nil {
 		return fmt.Errorf("failed to create .spendgrid: %v", err)
 	}
 
@@ -156,4 +159,42 @@ func createYearFiles(year string) error {
 	}
 
 	return nil
+}
+
+// CheckSchemaVersion checks the schema version of the current SpendGrid directory
+// Returns the schema version and build timestamp, or error if not initialized
+func CheckSchemaVersion() (schemaVersion string, buildTimestamp int64, err error) {
+	content, err := os.ReadFile(".spendgrid")
+	if err != nil {
+		return "", 0, fmt.Errorf("not a spendgrid directory")
+	}
+
+	parts := strings.Fields(string(content))
+	if len(parts) < 1 {
+		return "", 0, fmt.Errorf("invalid .spendgrid file format")
+	}
+
+	schemaVersion = parts[0]
+
+	if len(parts) >= 2 {
+		buildTimestamp, _ = strconv.ParseInt(parts[1], 10, 64)
+	}
+
+	return schemaVersion, buildTimestamp, nil
+}
+
+// CheckMigrationNeeded checks if a migration is needed based on schema version
+// targetSchema: the required schema version
+// Returns true if migration is needed, along with current version
+func CheckMigrationNeeded(targetSchema string) (needsMigration bool, currentSchema string, err error) {
+	currentSchema, _, err = CheckSchemaVersion()
+	if err != nil {
+		return false, "", err
+	}
+
+	// Compare schema versions
+	current, _ := strconv.Atoi(currentSchema)
+	target, _ := strconv.Atoi(targetSchema)
+
+	return current < target, currentSchema, nil
 }
