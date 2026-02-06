@@ -645,10 +645,15 @@ func AddRuleDirect(args []string) error {
 		return fmt.Errorf("type must be 'income' or 'expense'")
 	}
 
-	// Parse amount
-	amount, err := strconv.ParseFloat(amountStr, 64)
+	// Parse amount and currency (combined format supported: 25000TRY)
+	amount, parsedCurrency, err := parseAmountInput(amountStr)
 	if err != nil {
 		return fmt.Errorf("invalid amount: %v", err)
+	}
+
+	// If currency was parsed from amount string, use it
+	if parsedCurrency != "" {
+		currency = strings.ToUpper(parsedCurrency)
 	}
 
 	// Parse optional flags
