@@ -666,34 +666,80 @@ func parseAmountInput(input string) (float64, string, error) {
 	// Remove spaces
 	input = strings.ReplaceAll(input, " ", "")
 
-	// Regex to match amount and currency
-	// Examples: -25000TRY, 500.50USD, +1000TL, -3.200,50TRY
-	re := regexp.MustCompile(`^([+-]?[0-9.,]+)([A-Za-z$€₺]+)$`)
-	matches := re.FindStringSubmatch(input)
+	// Handle common formats:
+	// -25000TRY, 500.50USD, +1000TL, -3.200,50TRY, 250000TL
+	// Turkish format: 25.000,50 or 25000,50
 
-	if len(matches) != 3 {
-		return 0, "", fmt.Errorf("invalid format")
+	// First, try to separate amount and currency
+	// Currency can be: TL, TRY, USD, EUR, GBP, $, €, ₺
+	currencyPatterns := []string{"TL", "TRY", "USD", "EUR", "GBP", "$", "€", "₺"}
+
+	var currency string
+	amountStr := input
+
+	for _, curr := range currencyPatterns {
+		if strings.HasSuffix(strings.ToUpper(input), strings.ToUpper(curr)) {
+			currency = curr
+			amountStr = input[:len(input)-len(curr)]
+			break
+		}
 	}
 
-	amountStr := matches[1]
-	currency := matches[2]
+	if currency == "" {
+		// Try regex as fallback
+		re := regexp.MustCompile(`^([+-]?[0-9.,]+)([A-Za-z$€₺]+)$`)
+		matches := re.FindStringSubmatch(input)
+		if len(matches) == 3 {
+			amountStr = matches[1]
+			currency = matches[2]
+		} else {
+			return 0, "", fmt.Errorf("invalid format: cannot parse amount and currency from '%s'", input)
+		}
+	}
 
-	// Normalize thousand separators and handle multiple signs
-	amountStr = strings.ReplaceAll(amountStr, ",", "")
+	// Normalize thousand separators
+	// Turkish: 25.000,50 -> 25000.50
+	// US: 25,000.50 -> 25000.50
 
-	// Count minus signs and normalize
+	// Check if Turkish format (comma as decimal separator)
+	if strings.Contains(amountStr, ",") && strings.Contains(amountStr, ".") {
+		// Both present - determine which is decimal
+		lastComma := strings.LastIndex(amountStr, ",")
+		lastDot := strings.LastIndex(amountStr, ".")
+
+		if lastComma > lastDot {
+			// Turkish format: 25.000,50
+			amountStr = strings.ReplaceAll(amountStr, ".", "")
+			amountStr = strings.Replace(amountStr, ",", ".", 1)
+		} else {
+			// US format: 25,000.50
+			amountStr = strings.ReplaceAll(amountStr, ",", "")
+		}
+	} else if strings.Contains(amountStr, ",") {
+		// Only comma present - could be Turkish decimal or US thousand
+		// If less than 3 digits after comma, treat as decimal
+		parts := strings.Split(amountStr, ",")
+		if len(parts) == 2 && len(parts[1]) <= 2 {
+			// Turkish decimal: 25000,50
+			amountStr = strings.Replace(amountStr, ",", ".", 1)
+		} else {
+			// US thousand separator: 25,000
+			amountStr = strings.ReplaceAll(amountStr, ",", "")
+		}
+	}
+
+	// Handle multiple signs
 	minusCount := strings.Count(amountStr, "-")
 	amountStr = strings.ReplaceAll(amountStr, "-", "")
 	amountStr = strings.ReplaceAll(amountStr, "+", "")
 
-	// If odd number of minus signs, add one back
 	if minusCount%2 == 1 {
 		amountStr = "-" + amountStr
 	}
 
 	amount, err := strconv.ParseFloat(amountStr, 64)
 	if err != nil {
-		return 0, "", err
+		return 0, "", fmt.Errorf("cannot parse amount '%s': %v", amountStr, err)
 	}
 
 	return amount, currency, nil
