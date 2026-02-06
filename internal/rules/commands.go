@@ -93,27 +93,16 @@ func AddRuleInteractive() error {
 		ruleType = "expense" // default
 	}
 
-	// Get amount
-	fmt.Println(i18n.T("rules.amount_prompt"))
-	amountStr, err := readSimpleLine()
+	// Get amount and currency
+	fmt.Println("Tutar ve Para Birimi (örn: 25000TRY, 500 USD, -150.50 EUR):")
+	amountInput, err := readSimpleLine()
 	if err != nil {
 		return fmt.Errorf("error reading amount: %v", err)
 	}
-	amountStr = strings.TrimSpace(amountStr)
-	amount, err := strconv.ParseFloat(amountStr, 64)
+	amountInput = strings.TrimSpace(amountInput)
+	amount, currency, err := parseAmountInput(amountInput)
 	if err != nil {
 		return fmt.Errorf("invalid amount: %v", err)
-	}
-
-	// Get currency
-	fmt.Println("Para Birimi [TRY]:")
-	currency, err := readSimpleLine()
-	if err != nil {
-		return fmt.Errorf("error reading currency: %v", err)
-	}
-	currency = strings.TrimSpace(strings.ToUpper(currency))
-	if currency == "" {
-		currency = "TRY"
 	}
 
 	// Get schedule day with default
@@ -771,4 +760,63 @@ func AddRuleDirect(args []string) error {
 	}
 
 	return nil
+}
+
+// parseAmountInput parses amount and currency from input string
+// Supports formats like: 25000TRY, 500 USD, -150.50 EUR, 25.000,50 TRY
+func parseAmountInput(input string) (float64, string, error) {
+	input = strings.ReplaceAll(input, " ", "")
+
+	currencyPatterns := []string{"TL", "TRY", "USD", "EUR", "GBP", "$", "€", "₺"}
+
+	var currency string
+	amountStr := input
+
+	for _, curr := range currencyPatterns {
+		if strings.HasSuffix(strings.ToUpper(input), strings.ToUpper(curr)) {
+			currency = curr
+			amountStr = input[:len(input)-len(curr)]
+			break
+		}
+	}
+
+	if currency == "" {
+		return 0, "", fmt.Errorf("invalid format: cannot parse amount and currency from '%s'", input)
+	}
+
+	// Normalize thousand separators
+	if strings.Contains(amountStr, ",") && strings.Contains(amountStr, ".") {
+		lastComma := strings.LastIndex(amountStr, ",")
+		lastDot := strings.LastIndex(amountStr, ".")
+
+		if lastComma > lastDot {
+			amountStr = strings.ReplaceAll(amountStr, ".", "")
+			amountStr = strings.Replace(amountStr, ",", ".", 1)
+		} else {
+			amountStr = strings.ReplaceAll(amountStr, ",", "")
+		}
+	} else if strings.Contains(amountStr, ",") {
+		parts := strings.Split(amountStr, ",")
+		if len(parts) == 2 && len(parts[1]) <= 2 {
+			amountStr = strings.Replace(amountStr, ",", ".", 1)
+		} else {
+			amountStr = strings.ReplaceAll(amountStr, ",", "")
+		}
+	}
+
+	// Handle multiple signs
+	minusCount := strings.Count(amountStr, "-")
+	amountStr = strings.ReplaceAll(amountStr, "-", "")
+	amountStr = strings.ReplaceAll(amountStr, "+", "")
+
+	if minusCount%2 == 1 {
+		amountStr = "-" + amountStr
+	}
+
+	amount, err := strconv.ParseFloat(amountStr, 64)
+	if err != nil {
+		return 0, "", fmt.Errorf("cannot parse amount '%s': %v", amountStr, err)
+	}
+
+	return amount, currency, nil
 }
