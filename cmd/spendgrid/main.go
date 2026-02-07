@@ -13,7 +13,7 @@ import (
 )
 
 // version is set during build using -ldflags
-var version = "dev"
+var version = "v0.2.3"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -76,6 +76,9 @@ func init() {
 	rootCmd.AddCommand(commands.ConfigCmd)
 	rootCmd.AddCommand(commands.PoolCmd)
 	rootCmd.AddCommand(commands.PlanCmd)
+	rootCmd.AddCommand(commands.CompleteCmd)
+	rootCmd.AddCommand(commands.UncompleteCmd)
+	rootCmd.AddCommand(commands.CompleteMonthCmd)
 }
 
 func main() {

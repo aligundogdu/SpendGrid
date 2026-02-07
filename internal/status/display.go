@@ -34,14 +34,28 @@ func ShowStatus() error {
 	filePath := filepath.Join(year, monthFile)
 
 	var txCount, incomeCount, expenseCount int
+	var plannedCount int
 	var totalIncome, totalExpense float64
+	var plannedIncome, plannedExpense float64
 
 	content, err := os.ReadFile(filePath)
 	if err == nil {
 		parsed, _ := parser.ParseMonthFile(string(content))
-		txCount = len(parsed)
 
 		for _, tx := range parsed {
+			// Count uncompleted rules separately
+			if tx.IsRule && !tx.Completed {
+				plannedCount++
+				if tx.IsIncome() {
+					plannedIncome += tx.Amount
+				} else {
+					plannedExpense += -tx.Amount
+				}
+				continue
+			}
+
+			// Count completed transactions and non-rule transactions
+			txCount++
 			if tx.IsIncome() {
 				incomeCount++
 				totalIncome += tx.Amount
@@ -65,12 +79,21 @@ func ShowStatus() error {
 	fmt.Printf("📅 Current Period: %s %d\n", time.Month(currentMonth), now.Year())
 	fmt.Println()
 
-	fmt.Println("📊 Transactions:")
+	fmt.Println("📊 Completed Transactions:")
 	fmt.Printf("   Total: %d (Income: %d, Expense: %d)\n", txCount, incomeCount, expenseCount)
 	fmt.Printf("   Total Income:  %.2f\n", totalIncome)
 	fmt.Printf("   Total Expense: %.2f\n", totalExpense)
 	fmt.Printf("   Net:           %.2f\n", totalIncome-totalExpense)
 	fmt.Println()
+
+	if plannedCount > 0 {
+		fmt.Println("📅 Planned (Uncompleted Rules):")
+		fmt.Printf("   Total: %d\n", plannedCount)
+		fmt.Printf("   Expected Income:  %.2f\n", plannedIncome)
+		fmt.Printf("   Expected Expense: %.2f\n", plannedExpense)
+		fmt.Printf("   Expected Net:     %.2f\n", plannedIncome-plannedExpense)
+		fmt.Println()
+	}
 
 	fmt.Println("🏷️ Categories:")
 	fmt.Printf("   Active Tags: %d\n", tagsCount)

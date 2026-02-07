@@ -21,6 +21,8 @@ type Transaction struct {
 	Raw         string
 	IsUnparsed  bool
 	LineNumber  int
+	IsRule      bool // True if this transaction is from RULES section
+	Completed   bool // True if checkbox is [x], false if [ ] or no checkbox
 }
 
 // IsExpense returns true if the amount is negative
@@ -63,6 +65,16 @@ func ParseTransaction(line string, lineNum int) *Transaction {
 
 	// Handle checkbox format for rules: "- [ ] " or "- [x] "
 	if strings.HasPrefix(content, "[ ]") || strings.HasPrefix(content, "[x]") {
+		// Mark as a rule transaction
+		tx.IsRule = true
+
+		// Check if completed [x] or not [ ]
+		if strings.HasPrefix(content, "[x]") {
+			tx.Completed = true
+		} else {
+			tx.Completed = false
+		}
+
 		// Find the checkbox and remove it
 		checkboxEnd := strings.Index(content, "]")
 		if checkboxEnd > 0 {

@@ -35,13 +35,16 @@ var (
 
 // MonthlyReport represents a monthly financial report
 type MonthlyReport struct {
-	Year         int
-	Month        int
-	Income       map[string]float64            // by currency
-	Expenses     map[string]float64            // by currency
-	ByCategory   map[string]map[string]float64 // category -> currency -> amount
-	ByProject    map[string]map[string]float64 // project -> currency -> amount
-	Transactions []*parser.Transaction
+	Year            int
+	Month           int
+	Income          map[string]float64            // Completed transactions (by currency)
+	Expenses        map[string]float64            // Completed transactions (by currency)
+	PlannedIncome   map[string]float64            // Uncompleted rules (by currency)
+	PlannedExpenses map[string]float64            // Uncompleted rules (by currency)
+	ByCategory      map[string]map[string]float64 // category -> currency -> amount
+	ByProject       map[string]map[string]float64 // project -> currency -> amount
+	Transactions    []*parser.Transaction
+	PlannedTx       []*parser.Transaction // Uncompleted rules
 }
 
 // YearlyReport represents a yearly financial report
@@ -80,21 +83,37 @@ func GenerateMonthlyReport(month int) error {
 
 	// Generate report
 	report := &MonthlyReport{
-		Year:         year,
-		Month:        month,
-		Income:       make(map[string]float64),
-		Expenses:     make(map[string]float64),
-		ByCategory:   make(map[string]map[string]float64),
-		ByProject:    make(map[string]map[string]float64),
-		Transactions: parsed,
+		Year:            year,
+		Month:           month,
+		Income:          make(map[string]float64),
+		Expenses:        make(map[string]float64),
+		PlannedIncome:   make(map[string]float64),
+		PlannedExpenses: make(map[string]float64),
+		ByCategory:      make(map[string]map[string]float64),
+		ByProject:       make(map[string]map[string]float64),
+		Transactions:    parsed,
+		PlannedTx:       make([]*parser.Transaction, 0),
 	}
 
-	// Aggregate data
+	// Aggregate data - separate completed vs planned
 	for _, tx := range parsed {
+		// Skip uncompleted rules for main totals
+		if tx.IsRule && !tx.Completed {
+			// This is a planned transaction
+			report.PlannedTx = append(report.PlannedTx, tx)
+			if tx.IsIncome() {
+				report.PlannedIncome[tx.Currency] += tx.Amount
+			} else {
+				report.PlannedExpenses[tx.Currency] += -tx.Amount
+			}
+			continue
+		}
+
+		// Completed transactions and non-rule transactions
 		if tx.IsIncome() {
 			report.Income[tx.Currency] += tx.Amount
 		} else {
-			report.Expenses[tx.Currency] += -tx.Amount // Store as positive
+			report.Expenses[tx.Currency] += -tx.Amount
 		}
 
 		// By category
@@ -344,12 +363,13 @@ func printMonthlyReport(report *MonthlyReport, unparsed []*parser.Transaction) {
 	fmt.Printf("\n%s %s %d\n", i18n.T("reports.monthly_title"), time.Month(report.Month), report.Year)
 	fmt.Println(strings.Repeat("=", 70))
 
-	// Summary section
-	fmt.Printf("\n%s\n", i18n.T("reports.summary"))
-	fmt.Println(strings.Repeat("-", 70))
-
 	// Calculate totals in base currency (TRY)
 	date := time.Date(report.Year, time.Month(report.Month), 1, 0, 0, 0, 0, time.UTC)
+
+	// ========== GERÇEKLEŞEN ==========
+	fmt.Printf("\n📊 %s\n", "GERÇEKLEŞEN")
+	fmt.Println(strings.Repeat("-", 70))
+
 	totalIncome := 0.0
 	totalExpense := 0.0
 
@@ -377,21 +397,85 @@ func printMonthlyReport(report *MonthlyReport, unparsed []*parser.Transaction) {
 
 	fmt.Println(strings.Repeat("-", 70))
 
-	// TOTAL satırı - Soft renklerle
+	// TOTAL satırı
 	totalIncomeStr := softGreen.Sprintf("%15.2f", totalIncome)
 	totalExpenseStr := softRed.Sprintf("%15.2f", totalExpense)
 	whiteBold.Printf("%-20s ", "TOTAL (TRY)")
 	fmt.Printf("%s %s\n", totalIncomeStr, totalExpenseStr)
 
-	// NET satırı - Güçlü renklerle (bakiye)
+	// NET satırı
 	net := totalIncome - totalExpense
 	whiteBold.Printf("%-20s ", "NET")
 	if net >= 0 {
-		// Artı bakiye -> Güçlü yeşil
 		fmt.Printf("%s\n", strongGreen.Sprintf("%15.2f", net))
 	} else {
-		// Eksi bakiye -> Güçlü kırmızı
 		fmt.Printf("%s\n", strongRed.Sprintf("%15.2f", net))
+	}
+
+	// ========== PLANLANAN ==========
+	hasPlanned := len(report.PlannedTx) > 0
+	if hasPlanned {
+		fmt.Printf("\n📅 %s\n", "PLANLANAN (Tamamlanmamış Rule'lar)")
+		fmt.Println(strings.Repeat("-", 70))
+
+		plannedIncomeTotal := 0.0
+		plannedExpenseTotal := 0.0
+
+		// Print planned by currency
+		allPlannedCurrencies := getAllCurrencies(report.PlannedIncome, report.PlannedExpenses)
+		for _, curr := range allPlannedCurrencies {
+			inc := report.PlannedIncome[curr]
+			exp := report.PlannedExpenses[curr]
+
+			// Convert to base currency
+			incInBase, _ := exchange.ConvertAmount(inc, curr, "TRY", date)
+			expInBase, _ := exchange.ConvertAmount(exp, curr, "TRY", date)
+
+			plannedIncomeTotal += incInBase
+			plannedExpenseTotal += expInBase
+
+			incomeStr := softGreen.Sprintf("%15.2f", inc)
+			expenseStr := softRed.Sprintf("%15.2f", exp)
+			fmt.Printf("%-20s %s %s\n", curr, incomeStr, expenseStr)
+		}
+
+		fmt.Println(strings.Repeat("-", 70))
+
+		plannedIncomeStr := softGreen.Sprintf("%15.2f", plannedIncomeTotal)
+		plannedExpenseStr := softRed.Sprintf("%15.2f", plannedExpenseTotal)
+		whiteBold.Printf("%-20s ", "PLANNED TOTAL")
+		fmt.Printf("%s %s\n", plannedIncomeStr, plannedExpenseStr)
+
+		// List planned transactions
+		fmt.Println()
+		for _, tx := range report.PlannedTx {
+			sign := "+"
+			if tx.Amount < 0 {
+				sign = ""
+			}
+			fmt.Printf("  ☐ %02d | %-30s | %s%.2f %s\n",
+				tx.Day, tx.Description, sign, tx.Amount, tx.Currency)
+		}
+
+		// ========== PROJEKSİYON ==========
+		fmt.Printf("\n🔮 %s\n", "PROJEKSİYON (Gerçekleşen + Planlanan)")
+		fmt.Println(strings.Repeat("-", 70))
+
+		projectedIncome := totalIncome + plannedIncomeTotal
+		projectedExpense := totalExpense + plannedExpenseTotal
+		projectedNet := projectedIncome - projectedExpense
+
+		projIncStr := softGreen.Sprintf("%15.2f", projectedIncome)
+		projExpStr := softRed.Sprintf("%15.2f", projectedExpense)
+		whiteBold.Printf("%-20s ", "PROJ. TOTAL")
+		fmt.Printf("%s %s\n", projIncStr, projExpStr)
+
+		whiteBold.Printf("%-20s ", "PROJ. NET")
+		if projectedNet >= 0 {
+			fmt.Printf("%s\n", strongGreen.Sprintf("%15.2f", projectedNet))
+		} else {
+			fmt.Printf("%s\n", strongRed.Sprintf("%15.2f", projectedNet))
+		}
 	}
 
 	// By category

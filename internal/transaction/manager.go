@@ -166,6 +166,9 @@ func readSimpleLine() (string, error) {
 				input = input[:len(input)-1]
 				fmt.Print("\b \b")
 			}
+		case keyboard.KeySpace:
+			input = append(input, ' ')
+			fmt.Print(" ")
 		default:
 			if char != 0 {
 				input = append(input, char)
@@ -247,6 +250,14 @@ func readWithAutocomplete(prompt string, items []string, prefix string) (string,
 				selectedIndex++
 				suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
 			}
+
+		case keyboard.KeySpace:
+			// Handle space character
+			input = append(input, ' ')
+			selectedIndex = -1
+			searchTerm := strings.TrimPrefix(string(input), prefix)
+			matches = filterItems(items, searchTerm)
+			suggestionsShown = updateDisplay(prompt, input, matches, selectedIndex, prefix)
 
 		default:
 			// Regular character input
