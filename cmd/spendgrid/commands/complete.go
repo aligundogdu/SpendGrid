@@ -25,47 +25,25 @@ var CompleteCmd = &cobra.Command{
 		var ruleID string
 
 		if len(args) == 0 {
-			// Show recent uncompleted rules and let user select
-			recentRules, err := getRecentUncompletedRules(10)
+			// Show interactive rule selector with pagination
+			pageSize, _ := cmd.Flags().GetInt("page-size")
+			allRules, err := getAllUncompletedRules()
 			if err != nil {
 				color.Red("Error: %v", err)
 				return
 			}
 
-			if len(recentRules) == 0 {
+			if len(allRules) == 0 {
 				color.Green("✓ All rules in current month are already completed!")
 				return
 			}
 
-			fmt.Println()
-			color.Cyan("Uncompleted Rules (last 10):")
-			fmt.Println(strings.Repeat("-", 70))
-			for i, rule := range recentRules {
-				fmt.Printf("%2d. ☐ %02d | %-30s | %s | %s\n",
-					i+1, rule.Day, rule.Description, rule.ID, rule.Amount)
-			}
-			fmt.Println(strings.Repeat("-", 70))
-			fmt.Println()
-
-			// Ask for rule selection
-			fmt.Print("Enter rule number (1-N) or ID (or press Enter to cancel): ")
-			reader := bufio.NewReader(os.Stdin)
-			input, _ := reader.ReadString('\n')
-			input = strings.TrimSpace(input)
-
-			if input == "" {
+			selectedRule := showInteractiveRuleSelector(allRules, pageSize, false)
+			if selectedRule == nil {
 				color.Yellow("Cancelled")
 				return
 			}
-
-			// Check if input is a number (index) or ID
-			if idx, err := strconv.Atoi(input); err == nil && idx > 0 && idx <= len(recentRules) {
-				// Input is a valid index
-				ruleID = recentRules[idx-1].ID
-			} else {
-				// Input is treated as ID
-				ruleID = input
-			}
+			ruleID = selectedRule.ID
 		} else {
 			ruleID = args[0]
 		}
@@ -88,47 +66,25 @@ var UncompleteCmd = &cobra.Command{
 		var ruleID string
 
 		if len(args) == 0 {
-			// Show recent completed rules and let user select
-			recentRules, err := getRecentCompletedRules(10)
+			// Show interactive rule selector with pagination
+			pageSize, _ := cmd.Flags().GetInt("page-size")
+			allRules, err := getAllCompletedRules()
 			if err != nil {
 				color.Red("Error: %v", err)
 				return
 			}
 
-			if len(recentRules) == 0 {
+			if len(allRules) == 0 {
 				color.Yellow("No completed rules found in current month.")
 				return
 			}
 
-			fmt.Println()
-			color.Cyan("Completed Rules (last 10):")
-			fmt.Println(strings.Repeat("-", 70))
-			for i, rule := range recentRules {
-				fmt.Printf("%2d. ☑ %02d | %-30s | %s | %s\n",
-					i+1, rule.Day, rule.Description, rule.ID, rule.Amount)
-			}
-			fmt.Println(strings.Repeat("-", 70))
-			fmt.Println()
-
-			// Ask for rule selection
-			fmt.Print("Enter rule number (1-N) or ID (or press Enter to cancel): ")
-			reader := bufio.NewReader(os.Stdin)
-			input, _ := reader.ReadString('\n')
-			input = strings.TrimSpace(input)
-
-			if input == "" {
+			selectedRule := showInteractiveRuleSelector(allRules, pageSize, true)
+			if selectedRule == nil {
 				color.Yellow("Cancelled")
 				return
 			}
-
-			// Check if input is a number (index) or ID
-			if idx, err := strconv.Atoi(input); err == nil && idx > 0 && idx <= len(recentRules) {
-				// Input is a valid index
-				ruleID = recentRules[idx-1].ID
-			} else {
-				// Input is treated as ID
-				ruleID = input
-			}
+			ruleID = selectedRule.ID
 		} else {
 			ruleID = args[0]
 		}
@@ -180,6 +136,16 @@ func getRecentUncompletedRules(limit int) ([]RuleInfo, error) {
 // getRecentCompletedRules gets completed rules from the current month
 func getRecentCompletedRules(limit int) ([]RuleInfo, error) {
 	return getRecentRulesWithFilter(limit, true)
+}
+
+// getAllUncompletedRules gets ALL uncompleted rules from the current month
+func getAllUncompletedRules() ([]RuleInfo, error) {
+	return getRecentRulesWithFilter(0, false) // 0 means no limit
+}
+
+// getAllCompletedRules gets ALL completed rules from the current month
+func getAllCompletedRules() ([]RuleInfo, error) {
+	return getRecentRulesWithFilter(0, true) // 0 means no limit
 }
 
 // getRecentRulesWithFilter gets rules from current month with completion filter
@@ -239,11 +205,169 @@ func getRecentRulesWithFilter(limit int, completed bool) ([]RuleInfo, error) {
 		}
 	}
 
-	// Return up to limit rules
-	if len(rules) > limit {
+	// Return up to limit rules (0 or negative means no limit)
+	if limit > 0 && len(rules) > limit {
 		return rules[:limit], nil
 	}
 	return rules, nil
+}
+
+// showInteractiveRuleSelector shows rules with pagination and lets user select
+func showInteractiveRuleSelector(rules []RuleInfo, pageSize int, showCompleted bool) *RuleInfo {
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	totalRules := len(rules)
+	totalPages := (totalRules + pageSize - 1) / pageSize
+	if totalPages < 1 {
+		totalPages = 1
+	}
+	currentPage := 0
+
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		// Clear screen (ANSI escape code)
+		fmt.Print("\033[H\033[2J")
+
+		// Calculate page bounds
+		startIdx := currentPage * pageSize
+		endIdx := startIdx + pageSize
+		if endIdx > totalRules {
+			endIdx = totalRules
+		}
+
+		// Display header
+		fmt.Println()
+		if showCompleted {
+			color.Cyan("Completed Rules (%d total)", totalRules)
+		} else {
+			color.Cyan("Uncompleted Rules (%d total)", totalRules)
+		}
+		fmt.Printf("Page %d/%d | Showing %d-%d\n", currentPage+1, totalPages, startIdx+1, endIdx)
+		fmt.Println(strings.Repeat("-", 70))
+
+		// Display rules for current page
+		checkbox := "☐"
+		if showCompleted {
+			checkbox = "☑"
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			rule := rules[i]
+			fmt.Printf("%2d. %s %02d | %-30s | %s | %s\n",
+				i+1, checkbox, rule.Day, truncateString(rule.Description, 30), rule.ID, rule.Amount)
+		}
+
+		fmt.Println(strings.Repeat("-", 70))
+
+		// Show navigation options
+		fmt.Println()
+		fmt.Print("Navigation: ")
+		if currentPage > 0 {
+			fmt.Print("[p]revious ")
+		}
+		if currentPage < totalPages-1 {
+			fmt.Print("[n]ext ")
+		}
+		fmt.Print("[a]ll [q]uit | Enter number: ")
+
+		// Read input
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input == "" {
+			return nil
+		}
+
+		switch strings.ToLower(input) {
+		case "n", "next":
+			if currentPage < totalPages-1 {
+				currentPage++
+			}
+		case "p", "prev", "previous":
+			if currentPage > 0 {
+				currentPage--
+			}
+		case "a", "all":
+			// Show all rules in one list without pagination
+			return showAllRulesSelector(rules, showCompleted)
+		case "q", "quit", "cancel":
+			return nil
+		default:
+			// Try to parse as number
+			if idx, err := strconv.Atoi(input); err == nil && idx > 0 && idx <= totalRules {
+				return &rules[idx-1]
+			}
+			// Try to find by ID
+			for i := range rules {
+				if strings.EqualFold(rules[i].ID, input) {
+					return &rules[i]
+				}
+			}
+			color.Red("Invalid selection. Please enter a number, rule ID, or navigation command.")
+			fmt.Println("Press Enter to continue...")
+			reader.ReadString('\n')
+		}
+	}
+}
+
+// showAllRulesSelector shows all rules in a scrollable list
+func showAllRulesSelector(rules []RuleInfo, showCompleted bool) *RuleInfo {
+	fmt.Print("\033[H\033[2J")
+	fmt.Println()
+
+	if showCompleted {
+		color.Cyan("All Completed Rules (%d total):", len(rules))
+	} else {
+		color.Cyan("All Uncompleted Rules (%d total):", len(rules))
+	}
+	fmt.Println(strings.Repeat("-", 70))
+
+	checkbox := "☐"
+	if showCompleted {
+		checkbox = "☑"
+	}
+
+	for i, rule := range rules {
+		fmt.Printf("%2d. %s %02d | %-30s | %s | %s\n",
+			i+1, checkbox, rule.Day, truncateString(rule.Description, 30), rule.ID, rule.Amount)
+	}
+
+	fmt.Println(strings.Repeat("-", 70))
+	fmt.Println()
+	fmt.Print("Enter rule number or ID (or press Enter to cancel): ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		return nil
+	}
+
+	// Try to parse as number
+	if idx, err := strconv.Atoi(input); err == nil && idx > 0 && idx <= len(rules) {
+		return &rules[idx-1]
+	}
+
+	// Try to find by ID
+	for i := range rules {
+		if strings.EqualFold(rules[i].ID, input) {
+			return &rules[i]
+		}
+	}
+
+	return nil
+}
+
+// truncateString truncates a string to max length with ellipsis
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
 }
 
 // toggleRuleCompletion finds and toggles the completion status of a rule in month files
@@ -383,5 +507,7 @@ func completeAllRulesInContent(content string) (string, int) {
 }
 
 func init() {
-	// These commands will be added to root command in main.go
+	// Add flags for pagination
+	CompleteCmd.Flags().Int("page-size", 10, "Number of rules to show per page (default: 10)")
+	UncompleteCmd.Flags().Int("page-size", 10, "Number of rules to show per page (default: 10)")
 }
