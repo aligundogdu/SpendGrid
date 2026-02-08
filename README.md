@@ -2,7 +2,7 @@
 
 **Financial Projection and Cash Flow Management** | **Finansal Projeksiyon ve Nakit Akışı Yönetimi**
 
-[![Version](https://img.shields.io/badge/version-v0.2.5-blue.svg)](https://github.com/aligundogdu/SpendGrid/releases)
+[![Version](https://img.shields.io/badge/version-v0.2.6-blue.svg)](https://github.com/aligundogdu/SpendGrid/releases)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
